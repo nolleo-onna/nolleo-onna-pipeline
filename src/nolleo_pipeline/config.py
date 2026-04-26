@@ -1,31 +1,27 @@
-from __future__ import annotations
+"""환경변수 설정 로더."""
 
-from functools import lru_cache
-from typing import Literal
-
-from pydantic import Field
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(
-        env_file=".env",
-        env_file_encoding="utf-8",
-        case_sensitive=True,
-        extra="ignore",
-    )
+    """파이프라인 런타임 설정."""
 
-    database_url: str = Field(alias="DATABASE_URL")
-    tour_api_key: str = Field(alias="TOUR_API_KEY")
-    openai_api_key: str = Field(alias="OPENAI_API_KEY")
-    kakao_rest_api_key: str = Field(alias="KAKAO_REST_API_KEY")
-    kma_api_key: str = Field(alias="KMA_API_KEY")
-    busan_goodprice_api_key: str = Field(alias="BUSAN_GOODPRICE_API_KEY")
-    log_level: str = Field(default="INFO", alias="LOG_LEVEL")
-    env: Literal["dev", "prod"] = Field(default="dev", alias="ENV")
+    database_url: str
+    tour_api_key: str
+    openai_api_key: str
+    kakao_rest_api_key: str
+    kma_api_key: str
+    busan_goodprice_api_key: str
+    log_level: str = "INFO"
+    env: str = "dev"
+    openai_embedding_model: str = "text-embedding-3-small"
+    openai_llm_model: str = "gpt-4o-mini"
+
+    class Config:
+        env_file = ".env"
 
 
-@lru_cache(maxsize=1)
 def get_settings() -> Settings:
-    return Settings()
+    """설정 인스턴스를 반환한다."""
+    raise NotImplementedError
 

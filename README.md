@@ -1,80 +1,68 @@
-# 놀러온나 파이프라인
+# 놀러온나 데이터 파이프라인
 
-부산 청년 여행자를 위한 하루 코스 의사결정 서비스 **놀러온나**의 데이터 파이프라인 레포입니다.
-
-## 프로젝트 개요
-
-- TourAPI 4.0 데이터를 수집해 RDS PostgreSQL에 사전 적재
-- LLM 태그/요약 + OpenAI 임베딩(pgvector)을 생성해 검색/추천 품질 강화
-- 운영 방식: 초기 1회 벌크 + 매일 새벽 증분 갱신
-- 사용자 요청 경로에서 TourAPI를 직접 호출하지 않도록 설계
-
-## 레포 책임 범위
-
-이 레포가 하는 일:
-
-1. TourAPI(부산) 수집
-2. 태그/요약 생성
-3. 임베딩 생성
-4. DB upsert
-5. 증분 갱신 파이프라인 실행
-
-이 레포가 하지 않는 일:
-
-- REST API 서빙 (Spring Boot 레포)
-- 프론트엔드
-- 실시간 사용자 요청 처리
-
-## 외부 API
-
-- TourAPI Base URL: `http://apis.data.go.kr/B551011/KorService2`
-- OpenAI 모델:
-  - 태그/요약: `gpt-4o-mini`
-  - 임베딩: `text-embedding-3-small` (1536)
+놀러온나 서비스의 데이터 파이프라인 레포로, TourAPI/부산 공공데이터/외부 API를 수집·정규화해 PostgreSQL(PostGIS, pgvector, pg_trgm)에 적재하는 배치 시스템입니다. 본 레포는 데이터 적재에 집중하며, 서비스 API(Spring)는 별도 레포에서 운영합니다.
 
 ## 기술 스택
 
 - Python 3.11+
-- SQLAlchemy 2.0 (sync session)
-- PostgreSQL 16 + pgvector
-- httpx, tenacity, pydantic v2, python-dotenv, loguru, openai
+- uv (패키지/실행 관리)
+- PostgreSQL 16+, PostGIS, pgvector, pg_trgm
+- psycopg 3.x (`psycopg[binary,pool]`)
+- httpx (async), tenacity
+- pydantic v2, pydantic-settings
+- Alembic
+- OpenAI (`text-embedding-3-small`, `gpt-4o-mini`)
+- APScheduler
+- structlog
+- pytest, pytest-asyncio, ruff, mypy
 
-## 구조
+## 로컬 개발 시작하기
+
+```bash
+# 1) 로컬 DB 실행
+docker compose up -d
+
+# 2) 의존성 설치
+uv sync
+
+# 3) 마이그레이션 적용
+alembic upgrade head
+```
+
+## 디렉토리 구조
 
 ```text
 nolleo-onna-pipeline/
-├── .env.example
-├── .gitignore
-├── README.md
-├── pyproject.toml
-├── schema.sql
-├── src/
-│   ├── config.py
-│   ├── constants.py
-│   ├── db/
-│   ├── clients/
-│   ├── schemas/
-│   ├── pipelines/
-│   └── utils/
-├── scripts/
-│   ├── check_db.py
-│   └── run_bulk_sync.py
-└── tests/
+├── alembic/
+├── docs/
+├── src/nolleo_pipeline/
+│   ├── domains/
+│   ├── llm/
+│   ├── jobs/
+│   └── common/
+├── tests/
+└── scripts/
 ```
 
-## 구현 규칙 요약
-
-- SQL write는 upsert 패턴 기반으로 구현
-- 환경변수는 `src/config.py`에서만 로드
-- 로깅은 loguru 통일
-- TourAPI는 3회 재시도(5xx/timeout 한정)
-- API 콜 한도 추적(rate limiter) 적용 예정
-- `detailIntro2` 타입별 필드는 공통 파서로 정규화
-- 여행코스(25)는 코스/하위 스팟 2단 저장
-- 증분은 `areaBasedSyncList2` 기반 갱신
-
-## 환경변수
+## 주요 명령어
 
 ```bash
-cp .env.example .env
+make install
+make db-up
+make migrate
+make test
+make lint
+make format
 ```
+
+## 문서 안내
+
+- ERD: `docs/erd.md`
+- 운영 정책: `docs/operation.md`
+- 제안서: `docs/proposal.md`
+
+## 기여 가이드 (간단)
+
+- 브랜치: `feature/<topic>`, `fix/<topic>`, `chore/<topic>`
+- PR은 작은 단위로 나누고, 스키마 변경 시 Alembic 리비전과 함께 제출
+- 본 레포에서는 데이터 파이프라인 코드와 운영 문서 정합성을 우선 유지

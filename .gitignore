@@ -1,7 +1,14 @@
 # Environment
 .env
+.env.local
+.env.*.local
 .env.*
 !.env.example
+
+# Virtual environments
+.venv/
+venv/
+env/
 
 # Python cache and artifacts
 __pycache__/
@@ -12,19 +19,24 @@ __pycache__/
 .mypy_cache/
 .ruff_cache/
 
-# Virtual environments
-.venv/
-venv/
-env/
-
 # Build artifacts
 build/
 dist/
+
+# Logs
+*.log
+logs/
 
 # IDE and OS files
 .DS_Store
 .idea/
 .vscode/
+
+# Data dumps and exports
+*.dump
+*.sql.gz
+data/
+exports/
 
 # uv
 uv.lock

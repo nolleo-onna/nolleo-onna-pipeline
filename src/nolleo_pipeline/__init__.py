@@ -1,2 +1,4 @@
-"""nolleo_pipeline package."""
+"""놀러온나 데이터 파이프라인 패키지."""
+
+__version__ = "0.1.0"
 
