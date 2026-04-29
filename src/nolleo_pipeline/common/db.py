@@ -8,41 +8,36 @@
 
 from __future__ import annotations
 
-import os
-
-from psycopg.rows import dict_row  # SELECT 결과를 tuple이 아닌 dict로 받기
+from psycopg.rows import dict_row
 from psycopg_pool import AsyncConnectionPool
 
-# 모듈 레벨 변수 — 처음 한 번만 만들고 이후 재사용.
-# `_pool`처럼 _로 시작하면 "외부에서 직접 건드리지 마" 관용 표시.
+from nolleo_pipeline.config import get_settings
+
 _pool: AsyncConnectionPool | None = None
 
 
 def build_dsn() -> str:
-    """DB 접속 문자열(DSN)을 환경변수에서 읽는다."""
-    dsn = os.getenv("DATABASE_URL")
-    if not dsn:
-        raise RuntimeError("DATABASE_URL 환경변수가 필요합니다.")
-    return dsn
+    """DB 접속 문자열을 settings에서 가져온다.
+    이전엔 os.getenv("DATABASE_URL") 직접 읽었지만, .env에 그 키가 없고
+    설정 로더 단일화 원칙에 어긋나서 get_settings() 경유로 변경.
+    """
+    return get_settings().psycopg_dsn
 
 
 async def get_pool() -> AsyncConnectionPool:
-    """공유 커넥션 풀을 반환. 처음 호출 시 생성, 이후엔 재사용.
-    매번 db 연결하는 비용을 줄임. 
-    """
+    """공유 커넥션 풀. 처음 호출 시 생성, 이후 재사용."""
     global _pool
     if _pool is None:
         _pool = AsyncConnectionPool(
             conninfo=build_dsn(),
-            min_size=1,  # 항상 살아있는 커넥션 최소
-            max_size=10, # 동시에 최대 몇 개까지 열 수 있나
-            kwargs={"row_factory": dict_row}, 
-            # SELECT는 dict로 받음/ sql 조회 결과를 튜플이 아니라 
-            # 딕셔너리 형태로 받음.
-            open=False, # 명시적으로 open() 호출 시점에 연다
+            min_size=1,
+            max_size=10,
+            kwargs={"row_factory": dict_row},
+            open=False,
         )
-        await _pool.open() # 실제 연결 수립
+        await _pool.open()
     return _pool
+
 
 async def close_pool() -> None:
     """커넥션 풀을 닫는다. 프로그램 종료 시 한 번만 호출."""
