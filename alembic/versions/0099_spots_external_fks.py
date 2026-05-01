@@ -9,7 +9,7 @@
 이 마이그레이션은 master 테이블 존재가 전제. master 마이그레이션 revision이 정해지면
 depends_on에 추가해서 순서를 강제할 것.
 
-Revision ID: 0005_spots_external_fks
+Revision ID: 0099_spots_external_fks
 Revises: (none — master 마이그레이션 확정 전까지 head 체인에서 분리)
 Create Date: 2026-04-27
 """
@@ -17,7 +17,7 @@ from __future__ import annotations
 
 from alembic import op
 
-revision = "0005_spots_external_fks"
+revision = "0099_spots_external_fks"
 down_revision = None  # master 마이그레이션 확정 후 depends_on에 추가
 branch_labels = None
 # depends_on = ("xxxx_create_ldong_codes", "yyyy_create_lcls_systm", "zzzz_create_tags")
