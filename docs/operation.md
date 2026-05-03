@@ -1,13 +1,13 @@
 # 놀러온나 — 운영 정책 문서
 
 > 테이블별 상세 운영 정책 + API 적재표 + 저장 방식 + 대표 쿼리 + 인덱스 초안 + 데이터 흐름 매트릭스
-> DDL/파이프라인 작성 시 진실의 원천(SoT)으로 참조해야 할 문서
+> Cursor가 DDL/파이프라인 작성 시 진실의 원천(SoT)으로 참조해야 할 문서
 
 ---
 
 ## 1. API 적재표
 
-### 외부 API → 정규화 테이블 매핑
+### 외부 API/운영 입력 → 정규화 테이블 매핑
 
 
 | #   | API 이름                               | 대표 키                       | RAW 저장 테이블              | 정규화 테이블 (적재 순서)                                                                         | 비고                                                 |
@@ -19,6 +19,8 @@
 | 5   | 부산 착한가격업소 (getMulgaInfoList)         | `idx`                      | `GPS_RAW_SNAPSHOTS`     | `GOOD_PRICE_SHOPS` → `GOOD_PRICE_MATCH_QUEUE`                                           | XML → JSONB 변환                                     |
 | 6   | 카카오 지오코딩                             | (주소)                       | (RAW 미보관)               | `GOOD_PRICE_SHOPS.map_x/y` UPDATE                                                       | 좌표 보충용, 실패 시 `geocode_failed=true`                 |
 | 7   | 기상청 단기예보                             | `(signgu_cd, observed_at)` | (RAW 미보관)               | `WEATHER_CACHE`                                                                         | TTL 15분, 시군구 16개 격자                                |
+| 8   | 운영자 수기 가격 입력                           | `(shop_id, item_name)`     | (RAW 미보관)               | `GOOD_PRICE_PRICE_REPORTS(approved)` → `GOOD_PRICE_SHOP_PRICES`                         | 초기 MVP 핵심, 크롤링 없이 운영                           |
+| 9   | 사용자 가격 제보                              | `report_id`                | (RAW 미보관)               | `GOOD_PRICE_PRICE_REPORTS(pending→approved/rejected)` → `GOOD_PRICE_SHOP_PRICES`        | 증빙 기반 검수 후 반영                                  |
 
 
 ### LLM/임베딩 파생 산출물
@@ -48,6 +50,7 @@ EVENT_EMBEDDINGS
 TRAVEL_COURSES
 TRAVEL_COURSE_EMBEDDINGS
 GOOD_PRICE_SHOPS        -- external_id UK
+GOOD_PRICE_SHOP_PRICES  -- (shop_id, item_name) UK
 TAGS                    -- tag_name UK
 USERS                   -- (provider, external_id) UK
 USER_EMBEDDINGS         -- user_id PK
@@ -77,6 +80,7 @@ GENERATED_COURSE_ITEMS  -- 코스의 부속
 COURSE_DECISIONS        -- 의사결정 로그
 BUSINESS_HOURS_REVIEW_QUEUE  -- 검수 큐
 GOOD_PRICE_MATCH_QUEUE  -- 매칭 큐
+GOOD_PRICE_PRICE_REPORTS -- 가격 제보/수기 입력 이력
 SYNC_LOGS               -- 운영 로그
 BOOKMARKS               -- 사용자 북마크 (hard delete 정책)
 ```
@@ -422,6 +426,44 @@ GPS_RAW_SNAPSHOTS       -- shop_id PK
   - 카테고리 호환 (착한가격 음식점 ↔ TourAPI ContentTypeId=39)
   - 좌표 거리 200m 이내
 - **회귀 검증**: 임계값/가중치 변경 시 정답 셋 100쌍
+
+#### GOOD_PRICE_SHOP_PRICES ⭐
+
+- **조회 SoT**: 서비스 화면/코스 계산에서 참조하는 "현재 확정가"
+- **대상 제한**: 초기엔 `GOOD_PRICE_SHOPS.match_status='matched' AND matched_spot_id IS NOT NULL` 업소만 운영
+- **품목 단위**: `(shop_id, item_name)` 1행 유지 (upsert)
+- **갱신 경로**: 오직 승인된 report 반영으로만 update
+- **코스 반영**: 코스 생성 시 `expected_cost`/`total_savings` 계산의 1차 기준
+
+#### GOOD_PRICE_PRICE_REPORTS ⭐
+
+- **append-only 이력**: admin 수기 입력 + user 제보를 동일 스키마로 축적
+- **source_type**: `admin_manual` / `user_report` / `crawler`(향후 예약)
+- **report_status**:
+  - `pending` — 검수 대기
+  - `approved` — `GOOD_PRICE_SHOP_PRICES` 반영 완료
+  - `rejected` — 반영 제외, 이력 보존
+- **증빙 필드**: `evidence_type` + `evidence_ref` (영수증/사진/텍스트)
+- **품질 가드레일**:
+  - 동일 `(shop_id, item_name, reported_price, observed_at::date)` 중복 제보 병합
+  - 1유저 1업소 24시간 제보 횟수 제한(스팸 방지)
+  - 승인/반려 사유 필수 기록 (`reviewer_note`)
+
+#### 가격 운영 플로우 (초기 MVP)
+
+1. 운영자가 가격 확인 후 `GOOD_PRICE_PRICE_REPORTS(source_type='admin_manual', report_status='approved')` INSERT  
+2. 트랜잭션 내 `GOOD_PRICE_SHOP_PRICES` UPSERT + `current_price_report_id` 연결  
+3. 사용자 제보는 `pending`으로 적재 후 관리자 검수  
+4. 승인 건만 `GOOD_PRICE_SHOP_PRICES` 반영 (반려 건은 이력만 유지)
+
+#### DDD/MSA 확장 대비 참조 정책 (1단계)
+
+- **지금 당장 경계 FK를 일괄 제거하지 않음**: 초기 운영 안정성과 데이터 품질을 우선
+- **즉시 적용 범위는 순환 참조 제거**: 가격 도메인은 `GOOD_PRICE_SHOP_PRICES.current_price_report_id` 단방향만 유지
+- **경계 FK는 soft reference로 전환 가능한 형태로만 사용**:
+  - 코드에서 FK 직접 조인 의존 최소화
+  - API/서비스 레이어에서 ID 기반 조회·검증으로 통일
+- **분리 직전(2단계)에서 경계 FK 제거**: User/Spot 경계 참조는 제거 후 이벤트+리컨실리에이션으로 대체
 
 ---
 
@@ -769,6 +811,8 @@ ORDER BY pg_relation_size(indexrelid) DESC;
 | COURSES_RAW_SNAPSHOTS             | RW                   | -            |                        |
 | COURSE_ITEMS                      | RW                   | R            |                        |
 | GOOD_PRICE_SHOPS                  | RW                   | R            |                        |
+| GOOD_PRICE_SHOP_PRICES            | R                    | RW           | 확정 가격 SoT는 Spring      |
+| GOOD_PRICE_PRICE_REPORTS          | RW                   | RW           | 양쪽: 입력(파이썬 예약), 검수/승인 Spring |
 | GOOD_PRICE_MATCH_QUEUE            | RW                   | RW           | 양쪽: 파이썬 큐잉, Spring 검수  |
 | GPS_RAW_SNAPSHOTS                 | RW                   | -            |                        |
 | TAGS                              | RW                   | R            | 파이썬 자동 추가, Spring 검색만  |
@@ -803,12 +847,13 @@ GRANT INSERT, UPDATE, DELETE, SELECT ON
   spot_images, spot_tags, spot_congestion_forecast,
   events_core, event_details, event_embeddings, events_raw_snapshots, event_images,
   travel_courses, travel_course_embeddings, courses_raw_snapshots, course_items,
-  good_price_shops, good_price_match_queue, gps_raw_snapshots,
+  good_price_shops, good_price_price_reports, good_price_match_queue, gps_raw_snapshots,
   tags, weather_cache, hankkut, hankkut_events, sync_logs,
   business_hours_review_queue, user_embeddings
 TO pipeline_user;
 
 GRANT SELECT ON
+  good_price_shop_prices,
   weather_grids, ldong_codes, lcls_systm_codes, good_price_locale_codes,
   users  -- 분석용 읽기만
 TO pipeline_user;
@@ -828,6 +873,7 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON
   generated_courses, generated_course_items, course_decisions,
   user_reviews, visit_history, notifications,
   hankkut, hankkut_spots, hankkut_tags, hankkut_events,
+  good_price_shop_prices, good_price_price_reports,
   good_price_match_queue, business_hours_review_queue, sync_logs
 TO app_user;
 ```
@@ -1023,6 +1069,7 @@ TO pipeline_user;
  
 -- 양쪽 RW (상태 전이 규칙은 §13 참조)
 GRANT INSERT, UPDATE, SELECT ON
+  good_price_price_reports,
   good_price_match_queue,
   business_hours_review_queue,
   hankkut, hankkut_spots, hankkut_tags, hankkut_events
@@ -1030,6 +1077,7 @@ TO pipeline_user;
  
 -- 마스터 코드 (읽기만)
 GRANT SELECT ON
+  good_price_shop_prices,
   weather_grids, ldong_codes, lcls_systm_codes, good_price_locale_codes
 TO pipeline_user;
  
@@ -1076,11 +1124,13 @@ TO app_user;
 GRANT INSERT, UPDATE, DELETE, SELECT ON
   users, bookmarks, bookmark_collections,
   generated_courses, generated_course_items, course_decisions,
-  user_reviews, visit_history, notifications
+  user_reviews, visit_history, notifications,
+  good_price_shop_prices
 TO app_user;
  
 -- 양쪽 RW (상태 전이 규칙은 §13 참조)
 GRANT INSERT, UPDATE, SELECT ON
+  good_price_price_reports,
   good_price_match_queue,
   business_hours_review_queue,
   hankkut, hankkut_spots, hankkut_tags, hankkut_events,
@@ -1192,7 +1242,26 @@ WHERE object_type = 'SEQUENCE';
 
 **Spring이 UPDATE 절대 금지** (배치 결과 덮어쓰기 사고 방지).
 
-### 13.6 SYNC_LOGS
+### 13.6 GOOD_PRICE_PRICE_REPORTS
+
+| 작업                                                | 파이썬                     | Spring          |
+| ------------------------------------------------- | ----------------------- | --------------- |
+| INSERT (`source_type='admin_manual'`)             | ❌ 금지                    | ✅ 운영자 수기 입력     |
+| INSERT (`source_type='user_report'`)              | ❌ 금지                    | ✅ 사용자 제보 접수     |
+| INSERT (`source_type='crawler'`)                  | ✅ 향후 크롤러 도입 시만 허용       | ❌ 금지            |
+| UPDATE (`pending → approved/rejected`)            | ❌ 절대 금지                 | ✅ 관리자 검수        |
+| approved 후 GOOD_PRICE_SHOP_PRICES 반영             | ❌ 절대 금지                 | ✅ 단일 트랜잭션으로 처리  |
+| UPDATE (이미 처리된 row 재수정)                           | ❌ 절대 금지                 | ❌ 절대 금지 (감사 목적) |
+| DELETE                                             | ❌ 금지                    | ❌ 금지 (이력 보존)    |
+
+**규칙 요약**:
+
+- 가격 현재값 SoT는 `GOOD_PRICE_SHOP_PRICES`, 변경 근거 SoT는 `GOOD_PRICE_PRICE_REPORTS`
+- `report_status='approved'`가 아니면 `GOOD_PRICE_SHOP_PRICES` 반영 금지
+- 수기 입력/유저 제보/향후 크롤러를 `source_type`으로 단일 파이프라인 관리
+- `GOOD_PRICE_PRICE_REPORTS → GOOD_PRICE_SHOP_PRICES` 역참조 FK는 두지 않음 (순환 참조 방지)
+
+### 13.7 SYNC_LOGS
 
 
 | 작업                    | 파이썬            | Spring            |
@@ -1205,11 +1274,11 @@ WHERE object_type = 'SEQUENCE';
 
 **job_name 네임스페이스 규약**:
 
-- 파이썬: `tourapi_`*, `embedding_*`, `llm_*`, `geocoding_*`, `hankkut_auto_*`, `weather_*`, `congestion_*`
+- 파이썬: `tourapi_*`, `embedding_*`, `llm_*`, `geocoding_*`, `hankkut_auto_*`, `weather_*`, `congestion_*`
 - Spring: `user_*`, `course_*`, `notification_*`, `bookmark_*`
 - 서로의 prefix 사용 금지
 
-### 13.7 위반 감지 (선택, 강력 권장)
+### 13.8 위반 감지 (선택, 강력 권장)
 
 PostgreSQL 트리거로 강제할 수도 있음:
 
@@ -1507,7 +1576,7 @@ jobs:
 
 ---
 
-## 17. 출시 전 체크리스트 (이 6개 + 기존 정책 통합)
+## 17. 출시 전 체크리스트 (이 7개 + 기존 정책 통합)
 
 ### 컬럼 타입
 
@@ -1522,7 +1591,7 @@ jobs:
 
 ### 상태 전이
 
-- §13의 6개 양쪽 RW 테이블 모두 책임자 명확한가?
+- §13의 7개 양쪽 RW 테이블 모두 책임자 명확한가?
 - job_name 네임스페이스 규약(파이썬 prefix vs Spring prefix) 코드에 반영됐는가?
 
 ### 트랜잭션
