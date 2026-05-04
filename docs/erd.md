@@ -17,7 +17,7 @@
 | 스팟 (마스터)    | SPOTS_CORE, SPOT_DETAILS, SPOT_EMBEDDINGS, SPOTS_RAW_SNAPSHOTS, SPOT_IMAGES, SPOT_TAGS, SPOT_CONGESTION_FORECAST | TourAPI 관광지     |
 | 행사 (마스터)    | EVENTS_CORE, EVENT_DETAILS, EVENT_EMBEDDINGS, EVENTS_RAW_SNAPSHOTS, EVENT_IMAGES                                 | TourAPI 행사      |
 | 공식 코스 (마스터) | TRAVEL_COURSES, TRAVEL_COURSE_EMBEDDINGS, COURSES_RAW_SNAPSHOTS, COURSE_ITEMS                                    | TourAPI 여행코스    |
-| 착한가격        | GOOD_PRICE_SHOPS, GOOD_PRICE_MATCH_QUEUE, GOOD_PRICE_SHOP_PRICES, GOOD_PRICE_PRICE_REPORTS, GPS_RAW_SNAPSHOTS, GOOD_PRICE_LOCALE_CODES | 부산 가성비 매장       |
+| 착한가격        | GOOD_PRICE_SHOPS, GOOD_PRICE_MATCH_QUEUE, GOOD_PRICE_SHOP_PRICES, GOOD_PRICE_PRICE_OBSERVATIONS, GPS_RAW_SNAPSHOTS, GOOD_PRICE_LOCALE_CODES | 부산 가성비 매장       |
 | 검수 큐        | BUSINESS_HOURS_REVIEW_QUEUE                                                                                      | LLM 신뢰도         |
 | 태그          | TAGS                                                                                                             | 통제어휘 + 자유태그 마스터 |
 | 코드/날씨 마스터   | LDONG_CODES, LCLS_SYSTM_CODES, WEATHER_GRIDS, WEATHER_CACHE                                                      | 지역/분류/날씨        |
@@ -423,16 +423,16 @@ erDiagram
 
     SPOT_CONGESTION_FORECAST {
         bigserial id PK "내부ID"
-        varchar content_id FK "스팟ID_매칭실패시NULL"
+        varchar content_id FK "스팟ID_매칭실패시NULL_UK_notnull_part"
         varchar area_cd "areaCd_시도코드"
-        varchar signgu_cd FK "signguCd_LDONG참조"
-        varchar raw_tats_name "tAtsNm_TourAPI원본관광지명"
+        varchar signgu_cd FK "signguCd_LDONG참조_UK_null_part"
+        varchar raw_tats_name "tAtsNm_TourAPI원본관광지명_UK_null_part"
         varchar area_name "areaNm_시도명"
         varchar signgu_name "signguNm_시군구명"
-        date base_ymd "baseYmd_예측기준일"
+        date base_ymd "baseYmd_예측기준일_UK_both_parts"
         numeric concentration_rate "cnctrRate_TourAPI원본"
         smallint level "자체등급1_5_파생"
-        varchar source "tourapi_llm_rule"
+        varchar source "tourapi_llm_rule_UK_both_parts"
         timestamp fetched_at "수집시각"
     }
 
@@ -469,6 +469,7 @@ erDiagram
         timestamp synced_at "동기화시각"
         timestamp updated_at "갱신시각"
         boolean is_active "활성여부"
+        timestamp inactive_since "비활성시점"
     }
 
     GOOD_PRICE_MATCH_QUEUE {
@@ -497,11 +498,11 @@ erDiagram
         varchar unit "단위_1인분_세트_회"
         timestamp last_observed_at "마지막관측시각"
         timestamp last_verified_at "마지막검수시각"
-        bigint current_price_report_id FK "근거제보ID_nullable"
+        bigint current_price_observation_id FK "근거관측ID_nullable"
         timestamp updated_at "갱신시각"
     }
 
-    GOOD_PRICE_PRICE_REPORTS {
+    GOOD_PRICE_PRICE_OBSERVATIONS {
         bigserial id PK "내부ID"
         bigint shop_id FK "착한가격업소ID"
         varchar source_type "admin_manual_user_report_crawler"
@@ -733,14 +734,14 @@ erDiagram
     GOOD_PRICE_SHOPS ||--o| GPS_RAW_SNAPSHOTS : "1:1 원본"
     GOOD_PRICE_SHOPS ||--o{ GOOD_PRICE_MATCH_QUEUE : "매칭 후보"
     GOOD_PRICE_SHOPS ||--o{ GOOD_PRICE_SHOP_PRICES : "확정 가격"
-    GOOD_PRICE_SHOPS ||--o{ GOOD_PRICE_PRICE_REPORTS : "가격 제보 이력"
+    GOOD_PRICE_SHOPS ||--o{ GOOD_PRICE_PRICE_OBSERVATIONS : "가격 관측 이력"
     GOOD_PRICE_SHOPS }o--o| SPOTS_CORE : "매칭된 스팟_단방향"
     GOOD_PRICE_LOCALE_CODES ||--o{ GOOD_PRICE_SHOPS : "동 코드"
     GOOD_PRICE_MATCH_QUEUE }o--|| SPOTS_CORE : "후보 스팟"
     GOOD_PRICE_MATCH_QUEUE }o--o| USERS : "검수자"
-    GOOD_PRICE_SHOP_PRICES }o--o| GOOD_PRICE_PRICE_REPORTS : "근거 제보"
-    GOOD_PRICE_PRICE_REPORTS }o--o| USERS : "제보자"
-    GOOD_PRICE_PRICE_REPORTS }o--o| USERS : "검수자"
+    GOOD_PRICE_SHOP_PRICES }o--o| GOOD_PRICE_PRICE_OBSERVATIONS : "근거 관측"
+    GOOD_PRICE_PRICE_OBSERVATIONS }o--o| USERS : "제보자"
+    GOOD_PRICE_PRICE_OBSERVATIONS }o--o| USERS : "검수자"
     LDONG_CODES ||--o{ SPOTS_CORE : "법정동"
     LDONG_CODES ||--o{ EVENTS_CORE : "법정동"
     LDONG_CODES ||--o{ GOOD_PRICE_LOCALE_CODES : "시군구 상위"
@@ -777,13 +778,13 @@ erDiagram
 ### 착한가격 가격모델 2층화 (확정)
 
 - `GOOD_PRICE_SHOP_PRICES` 추가: 서비스 조회용 "현재 확정가" SoT
-- `GOOD_PRICE_PRICE_REPORTS` 추가: 수기/유저 제보 append-only 이력 + 검수 상태
+- `GOOD_PRICE_PRICE_OBSERVATIONS` 추가: 수기/유저 제보 append-only 이력 + 검수 상태
 - 초기 운영은 `source_type='admin_manual'` 중심, 이후 `user_report`/`crawler` 확장
 
 ### 착한가격 가격 참조 단방향화 (1단계)
 
-- 순환 참조 방지를 위해 `GOOD_PRICE_PRICE_REPORTS.shop_price_id` FK 미도입
-- `GOOD_PRICE_SHOP_PRICES.current_price_report_id` 단방향 참조만 유지
+- 순환 참조 방지를 위해 `GOOD_PRICE_PRICE_OBSERVATIONS.shop_price_id` FK 미도입
+- `GOOD_PRICE_SHOP_PRICES.current_price_observation_id` 단방향 참조만 유지
 
 ### USER_REVIEWS 익명화 보존
 
