@@ -135,27 +135,30 @@ class CongestionRepository:
         raw_tats_name: str,
         signgu_cd: str,
     ) -> str | None:
-        """ADR 0001 1단계 룰 매칭 — 같은 시군구 + 공백 정규화 후 이름 일치.
+        """ADR 0001 1단계 룰 매칭 — 같은 시군구 + 괄호/공백 정규화 후 이름 일치.
 
-        한국어 관광지 이름은 띄어쓰기 변형이 흔해서 exact match만 하면
-        false negative가 많아짐 (예: "해운대 해수욕장" vs "해운대해수욕장").
-        `regexp_replace(name, '\\s+', '', 'g')` 양쪽 적용으로 공백 차이 흡수.
+        한국어 관광지 이름 변형 패턴 흡수:
+            1. 괄호 동음이의 — "대각사(부산)" / "이기대 (부산 국가지질공원)"
+               → 괄호와 그 안 내용 통째 제거.
+            2. 띄어쓰기 변형 — "해운대 해수욕장" / "해운대해수욕장"
+               → 잔여 공백 제거.
 
-        회색지대(약어/이형 — "BEXCO" vs "벡스코") 는 None 반환 → 호출자가
-        unmatched로 적재. 후속 PR(`feat/spots-congestion-rematch`)에서
-        ADR 0001 2단계 LLM 회색지대 매칭 도입.
+        양쪽(DB title + 입력 raw_tats_name)에 같은 정규화 적용해서 비교.
+
+        회색지대(약어/한영 — "BEXCO" vs "벡스코" 류, SPOTS_CORE 자체 부재)는 None 반환
+        → 호출자가 unmatched로 적재. 후속 PR(`feat/spots-congestion-rematch`)에서
+        SPOTS_CORE 적재 정책 보완 + LLM 회색지대 매칭 도입.
 
         성능 노트:
             regexp_replace는 일반 title 인덱스를 타지 못함. 다만 (l_dong_signgu_cd,
             is_active) 필터로 시군구당 ~50 row(부산 기준)까지 좁혀진 후 평가하므로
             buffer scan으로 충분. 전국 확장 시 시군구당 200+ row 되면 표현식 인덱스
-            (`CREATE INDEX ON spots_core ((regexp_replace(title, '\\s+', '', 'g')))
-              WHERE is_active`) 추가 검토 — 별도 PR.
+            추가 검토 — 별도 PR.
 
         결정성:
-            공백 정규화 후 같은 시군구에 동일 이름 spot이 여러 개일 때 어떤 row를
-            반환할지 안정 — `ORDER BY content_id`로 항상 같은 row를 선택해서 운영
-            중 "왜 오늘은 다른 content_id에 붙었지?" 디버깅 회피.
+            정규화 후 같은 시군구에 동일 이름 spot이 여러 개일 때 어떤 row를 반환할지
+            안정 — `ORDER BY content_id`로 항상 같은 row를 선택해서 운영 중 "왜
+            오늘은 다른 content_id에 붙었지?" 디버깅 회피.
         """
         pool = await get_pool()
         async with pool.connection() as conn:
@@ -165,8 +168,14 @@ class CongestionRepository:
                   FROM spots_core
                  WHERE l_dong_signgu_cd = %s
                    AND is_active        = TRUE
-                   AND regexp_replace(title, '\s+', '', 'g')
-                     = regexp_replace(%s,    '\s+', '', 'g')
+                   AND regexp_replace(
+                         regexp_replace(title, '\s*\([^)]*\)\s*', '', 'g'),
+                         '\s+', '', 'g'
+                       )
+                     = regexp_replace(
+                         regexp_replace(%s, '\s*\([^)]*\)\s*', '', 'g'),
+                         '\s+', '', 'g'
+                       )
                  ORDER BY content_id                          --  결정성 보장
                  LIMIT 1
                 """,
