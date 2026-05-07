@@ -129,6 +129,10 @@ async def _sync_one_signgu(
     api_budget_limit: int,
 ) -> None:
     """단일 시군구 — 페이지 끝까지 호출 후 매칭 + batch upsert."""
+    # TourAPI signguCd는 area_cd + signgu_cd 결합 5자리 형식(예: 26 + 110 = 26110).
+    # 내부 표준(LDONG_CODES/SPOTS_CORE)은 3자리 signgu_cd를 유지하고,
+    # API 호출 시점에서만 결합 코드를 사용한다.
+    api_signgu_cd = f"{area_cd}{signgu_cd}"
     page = 1
     fetched_at = now_utc()
     all_records: list[CongestionForecastRecord] = []
@@ -141,7 +145,7 @@ async def _sync_one_signgu(
         ctx.api_calls_used += 1
         payload = await client.list_by_signgu(
             area_cd=area_cd,
-            signgu_cd=signgu_cd,
+            signgu_cd=api_signgu_cd,
             page=page,
             num_of_rows=num_of_rows,
         )

@@ -48,10 +48,19 @@ def _parse_one(
     source: CongestionSource,
 ) -> CongestionForecastRecord:
     rate = float(raw["cnctrRate"])
+    api_area_cd = str(raw["areaCd"])
+    api_signgu_cd = str(raw["signguCd"])
+    # TourAPI는 signguCd를 5자리 결합 코드로 줄 수 있다(예: 26110).
+    # 내부 표준(LDONG_CODES/SPOTS_CORE)과 정합을 맞추기 위해 3자리 signgu_cd로 정규화.
+    signgu_cd_normalized = (
+        api_signgu_cd[len(api_area_cd):]
+        if api_signgu_cd.startswith(api_area_cd)
+        else api_signgu_cd
+    )
     return CongestionForecastRecord(
         content_id=None,                                          # 매칭 단계에서 채움
-        area_cd=str(raw["areaCd"]),
-        signgu_cd=str(raw["signguCd"]),
+        area_cd=api_area_cd,
+        signgu_cd=signgu_cd_normalized,
         raw_tats_name=str(raw["tAtsNm"]).strip(),
         area_name=_str(raw.get("areaNm")),
         signgu_name=_str(raw.get("signguNm")),

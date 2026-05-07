@@ -24,7 +24,7 @@ from tenacity import (
 TOURAPI_CONGESTION_BASE_URL = (
     "https://apis.data.go.kr/B551011/TatsCnctrRateService"
 )
-LIST_ENDPOINT = "/tatsCnctrRateList"
+LIST_ENDPOINT = "/tatsCnctrRatedList"
 
 
 class TourApiClientError(Exception):
