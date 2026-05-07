@@ -6,22 +6,23 @@
 - spot_tags.tag_id                             → TAGS
 - spot_congestion_forecast.(area_cd, signgu_cd) → LDONG_CODES
 
-이 마이그레이션은 master 테이블 존재가 전제. master 마이그레이션 revision이 정해지면
-depends_on에 추가해서 순서를 강제할 것.
+체인 부착 (2026-05-07):
+- master 3종(LDONG/LCLS/TAGS)이 0006~0008로 적재됨에 따라 head에 합류.
+- 0009_seed_master_codes_busan 가 부산 16 시군구 + 운영 데이터 백필을 끝낸 뒤
+  본 FK 부착이 진행되어야 spots_core 기존 행 검증이 통과한다.
 
 Revision ID: 0099_spots_external_fks
-Revises: (none — master 마이그레이션 확정 전까지 head 체인에서 분리)
-Create Date: 2026-04-27
+Revises: 0009_seed_master_codes_busan
+Create Date: 2026-04-27 (reattach: 2026-05-07)
 """
 from __future__ import annotations
 
 from alembic import op
 
 revision = "0099_spots_external_fks"
-down_revision = None  # master 마이그레이션 확정 후 depends_on에 추가
+down_revision = "0009_seed_master_codes_busan"
 branch_labels = None
-# depends_on = ("xxxx_create_ldong_codes", "yyyy_create_lcls_systm", "zzzz_create_tags")
-depends_on = None
+depends_on = ("0006_create_ldong_codes", "0007_create_lcls_systm_codes")
 
 
 def upgrade() -> None:
