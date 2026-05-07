@@ -1,63 +1,72 @@
 # 놀러온나 — 데이터베이스 ERD
 
 > 정규화된 30+ 테이블 ERD. 도메인별로 그룹화되어 있음.
-> Cursor가 컨텍스트 잡기 쉽게 표 + 머메이드 코드 모두 포함.
+> 표 + 머메이드 코드 모두 포함.
 
 ---
 
 ## 도메인 구성 한눈에
 
-| 도메인 | 테이블 | 책임 |
-|---|---|---|
-| 사용자 | USERS, USER_EMBEDDINGS | 인증, 취향 벡터 |
-| 북마크/리뷰 | BOOKMARKS, BOOKMARK_COLLECTIONS, USER_REVIEWS, VISIT_HISTORY, NOTIFICATIONS | 사용자 활동 |
-| 코스 (사용자 생성) | GENERATED_COURSES, GENERATED_COURSE_ITEMS, COURSE_DECISIONS | AI 추천 코스 |
-| 콘텐츠 (한끗) | HANKKUT, HANKKUT_SPOTS, HANKKUT_TAGS, HANKKUT_EVENTS | 큐레이션 콘텐츠 |
-| 스팟 (마스터) | SPOTS_CORE, SPOT_DETAILS, SPOT_EMBEDDINGS, SPOTS_RAW_SNAPSHOTS, SPOT_IMAGES, SPOT_TAGS, SPOT_CONGESTION_FORECAST | TourAPI 관광지 |
-| 행사 (마스터) | EVENTS_CORE, EVENT_DETAILS, EVENT_EMBEDDINGS, EVENTS_RAW_SNAPSHOTS, EVENT_IMAGES | TourAPI 행사 |
-| 공식 코스 (마스터) | TRAVEL_COURSES, TRAVEL_COURSE_EMBEDDINGS, COURSES_RAW_SNAPSHOTS, COURSE_ITEMS | TourAPI 여행코스 |
-| 착한가격 | GOOD_PRICE_SHOPS, GOOD_PRICE_MATCH_QUEUE, GPS_RAW_SNAPSHOTS, GOOD_PRICE_LOCALE_CODES | 부산 가성비 매장 |
-| 검수 큐 | BUSINESS_HOURS_REVIEW_QUEUE | LLM 신뢰도 |
-| 태그 | TAGS | 통제어휘 + 자유태그 마스터 |
-| 코드/날씨 마스터 | LDONG_CODES, LCLS_SYSTM_CODES, WEATHER_GRIDS, WEATHER_CACHE | 지역/분류/날씨 |
-| 운영 | SYNC_LOGS | 파이프라인 추적 |
+
+| 도메인         | 테이블                                                                                                              | 책임              |
+| ----------- | ---------------------------------------------------------------------------------------------------------------- | --------------- |
+| 사용자         | USERS, USER_EMBEDDINGS                                                                                           | 인증, 취향 벡터       |
+| 북마크/리뷰      | BOOKMARKS, BOOKMARK_COLLECTIONS, USER_REVIEWS, VISIT_HISTORY, NOTIFICATIONS                                      | 사용자 활동          |
+| 코스 (사용자 생성) | GENERATED_COURSES, GENERATED_COURSE_ITEMS, COURSE_DECISIONS                                                      | AI 추천 코스        |
+| 콘텐츠 (한끗)    | HANKKUT, HANKKUT_SPOTS, HANKKUT_TAGS, HANKKUT_EVENTS                                                             | 큐레이션 콘텐츠        |
+| 스팟 (마스터)    | SPOTS_CORE, SPOT_DETAILS, SPOT_EMBEDDINGS, SPOTS_RAW_SNAPSHOTS, SPOT_IMAGES, SPOT_TAGS, SPOT_CONGESTION_FORECAST | TourAPI 관광지     |
+| 행사 (마스터)    | EVENTS_CORE, EVENT_DETAILS, EVENT_EMBEDDINGS, EVENTS_RAW_SNAPSHOTS, EVENT_IMAGES                                 | TourAPI 행사      |
+| 공식 코스 (마스터) | TRAVEL_COURSES, TRAVEL_COURSE_EMBEDDINGS, COURSES_RAW_SNAPSHOTS, COURSE_ITEMS                                    | TourAPI 여행코스    |
+| 착한가격        | GOOD_PRICE_SHOPS, GOOD_PRICE_MATCH_QUEUE, GOOD_PRICE_SHOP_PRICES, GOOD_PRICE_PRICE_OBSERVATIONS, GPS_RAW_SNAPSHOTS, GOOD_PRICE_LOCALE_CODES | 부산 가성비 매장       |
+| 검수 큐        | BUSINESS_HOURS_REVIEW_QUEUE                                                                                      | LLM 신뢰도         |
+| 태그          | TAGS                                                                                                             | 통제어휘 + 자유태그 마스터 |
+| 코드/날씨 마스터   | LDONG_CODES, LCLS_SYSTM_CODES, WEATHER_GRIDS, WEATHER_CACHE                                                      | 지역/분류/날씨        |
+| 운영          | SYNC_LOGS                                                                                                        | 파이프라인 추적        |
+
 
 ---
 
 ## 핵심 설계 패턴
 
 ### 1. Hot/Cold 분리 (1:1)
+
 - `SPOTS_CORE` (hot, 슬림) ↔ `SPOT_DETAILS` (cold, 무거운 텍스트)
 - `EVENTS_CORE` ↔ `EVENT_DETAILS`
 - 핫 패스 쿼리에서 무거운 컬럼 안 읽도록 최적화
 
 ### 2. RAW 보관 → 정제 적재 → 임베딩
+
 - `*_RAW_SNAPSHOTS` (외부 API 원본 JSONB) — 복구 안전망
 - `*_CORE` / `*_DETAILS` (정제된 정규화 데이터)
 - `*_EMBEDDINGS` (vector(1536), HNSW 인덱스)
 
 ### 3. 변경 감지 해시
+
 - `overview_hash`로 LLM 재호출 최소화
 - hash 같으면 summary/embedding/tags 재처리 skip
 
 ### 4. 신뢰도 큐 패턴
+
 - LLM 자동 처리 (≥0.85 confidence) → 즉시 적용
 - 중간 신뢰도 (0.7~0.85) → 큐잉, 24h SLA
 - 낮은 신뢰도 (<0.7) → 큐잉 + UI에 "확인 필요" 명시
 - 모든 LLM 산출물에 `model_name`, `model_version`, `prompt_version` 추적
 
 ### 5. PostGIS Generated Column
+
 ```sql
 geog geography(POINT, 4326) GENERATED ALWAYS AS
   (ST_SetSRID(ST_MakePoint(map_x, map_y), 4326)::geography) STORED
 ```
 
 ### 6. Soft Delete vs Hard Delete 정책
+
 - **Soft Delete** (`deleted_at`): USERS, GENERATED_COURSES, USER_REVIEWS, HANKKUT
 - **Hard Delete**: BOOKMARKS, NOTIFICATIONS (이력 보존 가치 낮음)
 - **is_active 플래그**: SPOTS_CORE, EVENTS_CORE, TRAVEL_COURSES, GOOD_PRICE_SHOPS (외부 API 사라지면 비활성화, 보관)
 
 ### 7. 시간대 정책 (반드시 준수)
+
 - DB 서버: UTC
 - TIMESTAMPTZ: UTC 자동 저장
 - `business_hours` JSONB의 시간 문자열: KST 기준 ("09:00")
@@ -414,16 +423,16 @@ erDiagram
 
     SPOT_CONGESTION_FORECAST {
         bigserial id PK "내부ID"
-        varchar content_id FK "스팟ID_매칭실패시NULL"
+        varchar content_id FK "스팟ID_매칭실패시NULL_UK_notnull_part"
         varchar area_cd "areaCd_시도코드"
-        varchar signgu_cd FK "signguCd_LDONG참조"
-        varchar raw_tats_name "tAtsNm_TourAPI원본관광지명"
+        varchar signgu_cd FK "signguCd_LDONG참조_UK_null_part"
+        varchar raw_tats_name "tAtsNm_TourAPI원본관광지명_UK_null_part"
         varchar area_name "areaNm_시도명"
         varchar signgu_name "signguNm_시군구명"
-        date base_ymd "baseYmd_예측기준일"
+        date base_ymd "baseYmd_예측기준일_UK_both_parts"
         numeric concentration_rate "cnctrRate_TourAPI원본"
         smallint level "자체등급1_5_파생"
-        varchar source "tourapi_llm_rule"
+        varchar source "tourapi_llm_rule_UK_both_parts"
         timestamp fetched_at "수집시각"
     }
 
@@ -460,6 +469,7 @@ erDiagram
         timestamp synced_at "동기화시각"
         timestamp updated_at "갱신시각"
         boolean is_active "활성여부"
+        timestamp inactive_since "비활성시점"
     }
 
     GOOD_PRICE_MATCH_QUEUE {
@@ -477,6 +487,39 @@ erDiagram
         timestamp reviewed_at "검수시각"
         text reviewer_note "검수메모"
         timestamp created_at "큐등록시각"
+    }
+
+    GOOD_PRICE_SHOP_PRICES {
+        bigserial id PK "내부ID"
+        bigint shop_id FK "착한가격업소ID"
+        varchar item_name "기준품목명"
+        numeric current_price "현재확정가격"
+        varchar currency "통화코드_KRW"
+        varchar unit "단위_1인분_세트_회"
+        timestamp last_observed_at "마지막관측시각"
+        timestamp last_verified_at "마지막검수시각"
+        bigint current_price_observation_id FK "근거관측ID_nullable"
+        timestamp updated_at "갱신시각"
+    }
+
+    GOOD_PRICE_PRICE_OBSERVATIONS {
+        bigserial id PK "내부ID"
+        bigint shop_id FK "착한가격업소ID"
+        varchar source_type "admin_manual_user_report_crawler"
+        bigint submitter_user_id FK "제보자_nullable_admin수기면NULL"
+        varchar item_name "제보품목명"
+        numeric reported_price "제보가격"
+        varchar currency "통화코드_KRW"
+        varchar unit "단위_1인분_세트_회"
+        timestamp observed_at "가격확인시각"
+        varchar evidence_type "receipt_photo_text_none"
+        text evidence_ref "증빙URL_파일키_텍스트"
+        varchar report_status "pending_approved_rejected"
+        bigint reviewed_by FK "검수자_admin"
+        timestamp reviewed_at "검수시각"
+        text reviewer_note "검수메모"
+        jsonb raw_payload "원본JSONB_확장대비"
+        timestamp created_at "제보등록시각"
     }
 
     TAGS {
@@ -690,10 +733,15 @@ erDiagram
     COURSE_ITEMS }o--o| SPOTS_CORE : "매칭 스팟"
     GOOD_PRICE_SHOPS ||--o| GPS_RAW_SNAPSHOTS : "1:1 원본"
     GOOD_PRICE_SHOPS ||--o{ GOOD_PRICE_MATCH_QUEUE : "매칭 후보"
+    GOOD_PRICE_SHOPS ||--o{ GOOD_PRICE_SHOP_PRICES : "확정 가격"
+    GOOD_PRICE_SHOPS ||--o{ GOOD_PRICE_PRICE_OBSERVATIONS : "가격 관측 이력"
     GOOD_PRICE_SHOPS }o--o| SPOTS_CORE : "매칭된 스팟_단방향"
     GOOD_PRICE_LOCALE_CODES ||--o{ GOOD_PRICE_SHOPS : "동 코드"
     GOOD_PRICE_MATCH_QUEUE }o--|| SPOTS_CORE : "후보 스팟"
     GOOD_PRICE_MATCH_QUEUE }o--o| USERS : "검수자"
+    GOOD_PRICE_SHOP_PRICES }o--o| GOOD_PRICE_PRICE_OBSERVATIONS : "근거 관측"
+    GOOD_PRICE_PRICE_OBSERVATIONS }o--o| USERS : "제보자"
+    GOOD_PRICE_PRICE_OBSERVATIONS }o--o| USERS : "검수자"
     LDONG_CODES ||--o{ SPOTS_CORE : "법정동"
     LDONG_CODES ||--o{ EVENTS_CORE : "법정동"
     LDONG_CODES ||--o{ GOOD_PRICE_LOCALE_CODES : "시군구 상위"
@@ -702,26 +750,44 @@ erDiagram
     WEATHER_GRIDS ||--o{ WEATHER_CACHE : "날씨 시계열"
 ```
 
+
+
 ---
 
 ## 주요 변경 이력
 
 ### 익명 사용자 제거 (확정)
+
 - `GENERATED_COURSES.session_id` 컬럼 제거
 - `saved_by_user_id` (nullable) → `user_id` (NOT NULL)
 - 비로그인 코스 24시간 cron 정리 정책 폐기
 - 비로그인은 콘텐츠 열람만 가능
 
 ### currently_open_cached 제거 (확정)
+
 - `SPOTS_CORE.currently_open_cached`, `open_cache_updated_at` 제거
 - 영업시간 SoT는 `SPOT_DETAILS.business_hours` JSONB 단일화
 - `is_open_now()` stored function + Redis 응답 캐시로 일원화
 
 ### GOOD_PRICE_SHOPS ↔ SPOTS_CORE 단방향화 (확정)
+
 - `SPOTS_CORE.good_price_shop_id` FK 제거
 - `GOOD_PRICE_SHOPS.matched_spot_id` 단방향 FK만 유지
 - `SPOTS_CORE.is_good_price` boolean 캐시는 유지
 
+### 착한가격 가격모델 2층화 (확정)
+
+- `GOOD_PRICE_SHOP_PRICES` 추가: 서비스 조회용 "현재 확정가" SoT
+- `GOOD_PRICE_PRICE_OBSERVATIONS` 추가: 수기/유저 제보 append-only 이력 + 검수 상태
+- 초기 운영은 `source_type='admin_manual'` 중심, 이후 `user_report`/`crawler` 확장
+
+### 착한가격 가격 참조 단방향화 (1단계)
+
+- 순환 참조 방지를 위해 `GOOD_PRICE_PRICE_OBSERVATIONS.shop_price_id` FK 미도입
+- `GOOD_PRICE_SHOP_PRICES.current_price_observation_id` 단방향 참조만 유지
+
 ### USER_REVIEWS 익명화 보존
+
 - `user_id` nullable 변경 + ON DELETE SET NULL
 - 탈퇴 사용자 리뷰는 익명화 후 보존
+

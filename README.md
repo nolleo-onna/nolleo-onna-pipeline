@@ -9,7 +9,7 @@
 - PostgreSQL 16+, PostGIS, pgvector, pg_trgm
 - psycopg 3.x (`psycopg[binary,pool]`)
 - httpx (async), tenacity
-- pydantic v2, pydantic-settings
+- pydantic v2, pydantic-settings정
 - Alembic
 - OpenAI (`text-embedding-3-small`, `gpt-4o-mini`)
 - APScheduler

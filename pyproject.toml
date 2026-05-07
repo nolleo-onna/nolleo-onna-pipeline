@@ -7,6 +7,7 @@ requires-python = ">=3.11,<4.0"
 dependencies = [
   "alembic==1.16.4",
   "apscheduler==3.11.0",
+  "greenlet",
   "httpx==0.28.1",
   "openai==1.99.9",
   "psycopg[binary,pool]==3.2.9",
@@ -45,6 +46,7 @@ select = ["E", "F", "I", "N", "UP", "B", "SIM"]
 [tool.mypy]
 strict = true
 python_version = "3.11"
+plugins = ["pydantic.mypy"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
