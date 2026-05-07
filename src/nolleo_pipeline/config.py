@@ -46,6 +46,13 @@ class Settings(BaseSettings):
         default="gpt-4o-mini", alias="OPENAI_LLM_MODEL"
     )
     daily_api_call_limit: int = Field(default=900, alias="DAILY_API_CALL_LIMIT")
+    # ── 비활성 안전 가드 (ADR 0003) ────────────────────
+    spots_deactivate_max_failure_rate: float = Field(
+        default=0.05, alias="SPOTS_DEACTIVATE_MAX_FAILURE_RATE"
+    )
+    spots_deactivate_max_ratio: float = Field(
+        default=0.2, alias="SPOTS_DEACTIVATE_MAX_RATIO"
+    )
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
     env: str = Field(default="dev", alias="ENV")
 
