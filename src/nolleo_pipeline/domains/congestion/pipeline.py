@@ -213,20 +213,12 @@ async def run_today_concentration_cache_refresh() -> None:
         ctx.metadata.setdefault("cache_updated_count", 0)
         ctx.metadata.setdefault("referenced_sync_log_id", None)
 
-        try:
-            await _refresh_cache_if_safe(
-                repo=repo,
-                ctx=ctx,
-                max_failure_rate=settings.spots_deactivate_max_failure_rate,
-                max_null_ratio=settings.spots_congestion_max_null_ratio,
-            )
-        except Exception as exc:                                  # noqa: BLE001
-            # ADR 0003 §4 — 캐시 갱신 실패는 흡수, 잡 'success' 유지
-            ctx.metadata["cache_skipped"] = True
-            ctx.metadata["cache_skip_reason"] = "exception"
-            ctx.metadata.setdefault("errors", []).append(
-                {"stage": "cache_refresh", "error": str(exc)[:300]}
-            )
+        await _refresh_cache_if_safe(
+            repo=repo,
+            ctx=ctx,
+            max_failure_rate=settings.spots_deactivate_max_failure_rate,
+            max_null_ratio=settings.spots_congestion_max_null_ratio,
+        )
 
 
 async def _refresh_cache_if_safe(
@@ -243,52 +235,62 @@ async def _refresh_cache_if_safe(
         2. stopped_by_budget=False
         3. failure_rate < max_failure_rate
         4. null_ratio < max_null_ratio (혼잡도 도메인 고유)
+
+    가드 통과 후의 SQL 실패는 try/except로 흡수 — 캐시 갱신 실패는
+    sync 잡 'success'를 가리지 않음 (ADR 0003 §4).
     """
-    prev = await _load_previous_sync_metadata(JOB_SYNC)
-    if prev is None:
+    try:
+        prev = await _load_previous_sync_metadata(JOB_SYNC)
+        if prev is None:
+            ctx.metadata["cache_skipped"] = True
+            ctx.metadata["cache_skip_reason"] = "no_previous_sync"
+            return
+
+        sync_id, sync_meta, fetched, upserted, failed = prev
+        ctx.metadata["referenced_sync_log_id"] = sync_id
+
+        # 가드 1
+        if not sync_meta.get("bootstrap_complete", False):
+            ctx.metadata["cache_skipped"] = True
+            ctx.metadata["cache_skip_reason"] = "partial_sync"
+            return
+
+        # 가드 2
+        if sync_meta.get("stopped_by_budget", False):
+            ctx.metadata["cache_skipped"] = True
+            ctx.metadata["cache_skip_reason"] = "stopped_by_budget"
+            return
+
+        # 가드 3
+        failure_rate = failed / max(fetched, 1)
+        if failure_rate >= max_failure_rate:
+            ctx.metadata["cache_skipped"] = True
+            ctx.metadata["cache_skip_reason"] = "high_failure_rate"
+            return
+
+        # 가드 4
+        null_count = int(sync_meta.get("null_content_id_count", 0))
+        null_ratio = null_count / max(upserted, 1)
+        if null_ratio >= max_null_ratio:
+            ctx.metadata["cache_skipped"] = True
+            ctx.metadata["cache_skip_reason"] = "high_null_ratio"
+            return
+
+        # 모든 가드 통과 — 캐시 SQL 실행
+        today = now_kst().date()
+        updated = await repo.refresh_today_concentration_cache(
+            today=today,
+            updated_at=now_utc(),
+        )
+        ctx.metadata["cache_skipped"] = False
+        ctx.metadata["cache_skip_reason"] = None
+        ctx.metadata["cache_updated_count"] = updated
+    except Exception as exc:                                      # noqa: BLE001
         ctx.metadata["cache_skipped"] = True
-        ctx.metadata["cache_skip_reason"] = "no_previous_sync"
-        return
-
-    sync_id, sync_meta, fetched, upserted, failed = prev
-    ctx.metadata["referenced_sync_log_id"] = sync_id
-
-    # 가드 1
-    if not sync_meta.get("bootstrap_complete", False):
-        ctx.metadata["cache_skipped"] = True
-        ctx.metadata["cache_skip_reason"] = "partial_sync"
-        return
-
-    # 가드 2
-    if sync_meta.get("stopped_by_budget", False):
-        ctx.metadata["cache_skipped"] = True
-        ctx.metadata["cache_skip_reason"] = "stopped_by_budget"
-        return
-
-    # 가드 3
-    failure_rate = failed / max(fetched, 1)
-    if failure_rate >= max_failure_rate:
-        ctx.metadata["cache_skipped"] = True
-        ctx.metadata["cache_skip_reason"] = "high_failure_rate"
-        return
-
-    # 가드 4
-    null_count = int(sync_meta.get("null_content_id_count", 0))
-    null_ratio = null_count / max(upserted, 1)
-    if null_ratio >= max_null_ratio:
-        ctx.metadata["cache_skipped"] = True
-        ctx.metadata["cache_skip_reason"] = "high_null_ratio"
-        return
-
-    # 모든 가드 통과 — 캐시 SQL 실행
-    today = now_kst().date()
-    updated = await repo.refresh_today_concentration_cache(
-        today=today,
-        updated_at=now_utc(),
-    )
-    ctx.metadata["cache_skipped"] = False
-    ctx.metadata["cache_skip_reason"] = None
-    ctx.metadata["cache_updated_count"] = updated
+        ctx.metadata["cache_skip_reason"] = "exception"
+        ctx.metadata.setdefault("errors", []).append(
+            {"stage": "cache_refresh", "error": str(exc)[:300]}
+        )
 
 
 # ─── 잡 3: congestion_old_purge ──────────────────────────────────
