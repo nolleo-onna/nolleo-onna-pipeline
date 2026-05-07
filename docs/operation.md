@@ -294,7 +294,12 @@ GPS_RAW_SNAPSHOTS       -- shop_id PK
   - **금지**: 단독 사용 (`WHERE is_open_now(content_id)` 만) → 풀스캔
   - **올바름**: 인덱스 선행 필터 결합 (`l_dong_signgu_cd`, `is_active`, `ST_DWithin`)
 - **캐시 컬럼**:
-  - `today_concentration_rate`: 매일 새벽 SPOT_CONGESTION_FORECAST에서 캐시
+  - `today_concentration_rate`: 매일 새벽 `SPOT_CONGESTION_FORECAST`에서 캐시.
+    - `base_ymd = TODAY (KST)` row가 있는 spot만 갱신한다.
+    - 오늘 forecast row가 없는 spot은 **이전 값 유지**(full reset 미수행).
+    - stale 여부는 `concentration_updated_at`으로 추적하며, UI는 "N시간 전 갱신" 표기를 사용할 수 있다.
+    - 운영 가정: `match_rate >= 0.90` 유지 시 하루 stale은 의사결정 영향이 낮다고 본다.
+  - `upcoming_concentration_avg`: `base_ymd ∈ [TODAY+1, TODAY+3]` 3일 평균 (today 미포함)
   - `avg_rating`/`review_count`: USER_REVIEWS 변경 시 동기 + 일 1회 cron 보정
   - `is_good_price`: GOOD_PRICE_SHOPS.matched_spot_id 변경 시 동기
 - **비활성 처리** (상세는 ADR 0003): TourAPI에서 사라지면 `is_active=false` + `inactive_since=NOW()` (hard delete X)
@@ -623,6 +628,12 @@ GPS_RAW_SNAPSHOTS       -- shop_id PK
   - `deactivation_skip_reason` enum: `partial_sync` | `stopped_by_budget` | `high_failure_rate` | `high_deactivation_ratio` | `exception` | `null`
   - `deactivation_failure_rate`: 가드 3 평가에 사용된 `records_failed / max(records_fetched, 1)`.
   - `deactivation_ratio`: 가드 4 dry-run 비율 `candidates / max(active, 1)`.
+- **혼잡도 sync/cache metadata 필드** (`tourapi_congestion_sync`, `today_concentration_cache_refresh`):
+  - `match_rate`: `1 - null_ratio` (`null_ratio = null_content_id_count / max(records_upserted, 1)`).
+  - `null_ratio`: 매칭 실패 비율. 가드 임계값 `SPOTS_CONGESTION_MAX_NULL_RATIO`(default `0.3`)와 비교.
+  - `cache_skipped`: 캐시 갱신 실행 여부 (`true`면 skip).
+  - `cache_skip_reason` enum: `partial_sync` | `stopped_by_budget` | `high_failure_rate` | `high_null_ratio` | `exception` | `null`
+  - 운영 가드: `match_rate < 0.90` 또는 `null_ratio >= SPOTS_CONGESTION_MAX_NULL_RATIO`이면 캐시 갱신을 skip하고 metadata에 사유를 기록한다.
 - **좀비 job timeout**: 24시간 이상 running → failed 자동 전환 cron
 - **보존 정책**:
   - `success`: 1년 후 cron hard delete
