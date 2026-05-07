@@ -56,6 +56,11 @@ class Settings(BaseSettings):
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
     env: str = Field(default="dev", alias="ENV")
 
+    # ── 혼잡도 캐시 갱신 가드 (ADR 0003 패턴 재사용) ──
+    spots_congestion_max_null_ratio: float = Field(
+        default=0.3, alias="SPOTS_CONGESTION_MAX_NULL_RATIO"
+    )
+
     # ── 파생 DSN (psycopg / SQLAlchemy 각각) ─────────
     @property
     def psycopg_dsn(self) -> str:
