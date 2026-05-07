@@ -1,7 +1,7 @@
 # 놀러온나 — 운영 정책 문서
 
 > 테이블별 상세 운영 정책 + API 적재표 + 저장 방식 + 대표 쿼리 + 인덱스 초안 + 데이터 흐름 매트릭스
-> Cursor가 DDL/파이프라인 작성 시 진실의 원천(SoT)으로 참조해야 할 문서
+> DDL/파이프라인 작성 시 진실의 원천(SoT)으로 참조해야 할 문서
 
 ---
 
@@ -502,6 +502,29 @@ GPS_RAW_SNAPSHOTS       -- shop_id PK
   - 코드에서 FK 직접 조인 의존 최소화
   - API/서비스 레이어에서 ID 기반 조회·검증으로 통일
 - **분리 직전(2단계)에서 경계 FK 제거**: User/Spot 경계 참조는 제거 후 이벤트+리컨실리에이션으로 대체
+
+#### CSV 온보딩 (행정안전부 착한가격 파일)
+
+- **현재 CSV 컬럼셋은 ERD와 호환**: `시도, 시군, 업종, 업소명, 연락처, 주소, 메뉴1~3, 가격1~3`는 초기 적재 가능
+- **권장 적재 흐름**: `RAW(staging)` → `GOOD_PRICE_SHOPS` 업소 정규화 → `GOOD_PRICE_SHOP_PRICES` 품목 정규화
+- **핵심 원칙**: 메뉴/가격은 열 구조(`menu1~3`) 그대로 보관하지 않고, `(shop_id, item_name)` 행 구조로 펼쳐 UPSERT
+
+##### 컬럼 매핑 (CSV → 정규화 테이블)
+
+- `시도 + 시군` → `GOOD_PRICE_SHOPS.l_dong_signgu_cd` 파생(코드 매핑 가능 시), 원문은 staging에 보관
+- `업종` → `GOOD_PRICE_SHOPS.category_name` (내부 코드 매핑: 예 `기타요식업/한식/양식 -> 602`, `미용업 -> 603`)
+- `업소명` → `GOOD_PRICE_SHOPS.name`
+- `연락처` → `GOOD_PRICE_SHOPS.tel` (하이픈/공백 정규화)
+- `주소` → `GOOD_PRICE_SHOPS.addr`
+- `메뉴N + 가격N` → `GOOD_PRICE_SHOP_PRICES.item_name/current_price` (N=1..3, 빈 값 skip)
+
+##### 중복/품질 규칙
+
+- **업소 키**: 외부 고유 ID 부재 시 `sha1(시도|시군|업소명|주소|연락처)` 기반 임시 `external_id` 생성
+- **메뉴 키**: `(shop_id, item_name)` 기준 1행 유지, 동일 키 재유입 시 최신 데이터로 UPSERT
+- **가격 파싱**: 숫자 변환 불가 값은 폐기하지 말고 staging 오류 사유 컬럼에 기록
+- **결측 처리**: `메뉴` 또는 `가격` 둘 중 하나라도 비어 있으면 해당 품목 row는 미생성
+- **추적성**: 적재 배치마다 `source_file`, `loaded_at`, `run_id(sync_logs.id)`를 staging에 남김
 
 ---
 
