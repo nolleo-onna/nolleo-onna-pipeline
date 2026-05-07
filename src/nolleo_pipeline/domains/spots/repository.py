@@ -13,6 +13,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any, cast
 
 from psycopg import AsyncConnection
 from psycopg.types.json import Json
@@ -60,7 +61,10 @@ class SpotsRepository:
                 (content_id,),
             )
             result = await row.fetchone()
-            return result["overview_hash"] if result else None
+            if result is None:
+                return None
+            overview_hash: str | None = cast(dict[str, Any], result)["overview_hash"]
+            return overview_hash
 
     async def get_source_modified_times(
         self,
@@ -83,9 +87,10 @@ class SpotsRepository:
                 (content_ids,),
             )
             records = await row.fetchall()
+            typed_records = cast(list[dict[str, Any]], records)
             return {
                 record["content_id"]: record["source_modified_time"]
-                for record in records
+                for record in typed_records
             }
 
     # ─── 내부 메서드들 ────────────────────────────────────────

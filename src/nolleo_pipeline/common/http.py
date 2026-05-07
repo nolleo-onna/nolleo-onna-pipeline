@@ -8,6 +8,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 import httpx
 from tenacity import (  # tenacity = 재시도 라이브러리
     retry,
@@ -52,7 +54,9 @@ def build_http_client() -> httpx.AsyncClient:
     ),
     reraise=True,                # 다 실패하면 마지막 예외 그대로 던짐
 )
-async def get_json(client: httpx.AsyncClient, url: str, params: dict[str, str]) -> dict:
+async def get_json(
+    client: httpx.AsyncClient, url: str, params: dict[str, str]
+) -> dict[str, Any]:
     """GET 요청 → JSON 파싱 (재시도 포함).
 
     HTTP 상태가 4xx/5xx면 `raise_for_status()`가 예외를 던진다.
@@ -60,4 +64,5 @@ async def get_json(client: httpx.AsyncClient, url: str, params: dict[str, str]) 
     """
     response = await client.get(url, params=params)
     response.raise_for_status()  # 200 아니면 예외
-    return response.json()
+    data: dict[str, Any] = response.json()
+    return data

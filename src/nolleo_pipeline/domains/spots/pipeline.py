@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import json
 from datetime import datetime
-from typing import Any
+from typing import Any, cast
 
 from nolleo_pipeline.common.db import get_pool
 from nolleo_pipeline.common.http import build_http_client
@@ -485,7 +485,8 @@ async def _load_previous_sync_state(job_name: str) -> dict[str, Any]:
         result = await row.fetchone()
         if not result:
             return {}
-        metadata = result.get("metadata")
+        result_dict = cast(dict[str, Any], result)
+        metadata = result_dict.get("metadata")
         if isinstance(metadata, str):
             try:
                 metadata = json.loads(metadata)

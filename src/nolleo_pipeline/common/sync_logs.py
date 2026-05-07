@@ -15,7 +15,7 @@ from __future__ import annotations
 import json
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
-from typing import Any, AsyncIterator
+from typing import Any, AsyncIterator, cast
 
 from nolleo_pipeline.common.db import get_pool
 from nolleo_pipeline.common.timezone import now_utc
@@ -69,7 +69,8 @@ async def sync_log_run(
                 (ctx.job_name, ctx.run_type, now_utc()),
             )
             result = await row.fetchone()
-            ctx.row_id = result["id"] if result else None
+            if result is not None:
+                ctx.row_id = cast(dict[str, Any], result)["id"]
 
     # 2) 본 작업 실행 (with 블록)
     try:
