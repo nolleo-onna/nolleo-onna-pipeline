@@ -67,7 +67,10 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.execute("ALTER TABLE spot_congestion_forecast DROP CONSTRAINT IF EXISTS fk_spot_congestion_signgu;")
+    op.execute(
+        "ALTER TABLE spot_congestion_forecast "
+        "DROP CONSTRAINT IF EXISTS fk_spot_congestion_signgu;"
+    )
     op.execute("ALTER TABLE spot_tags DROP CONSTRAINT IF EXISTS fk_spot_tags_tag;")
     op.execute("ALTER TABLE spots_core DROP CONSTRAINT IF EXISTS fk_spots_core_lcls;")
     op.execute("ALTER TABLE spots_core DROP CONSTRAINT IF EXISTS fk_spots_core_signgu;")

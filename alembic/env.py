@@ -11,11 +11,11 @@ from __future__ import annotations
 import asyncio
 from logging.config import fileConfig
 
-from alembic import context
 from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
+from alembic import context
 from nolleo_pipeline.config import get_settings
 
 # Alembic Config 객체. alembic.ini의 [alembic] 섹션이 여기에 들어옴.
@@ -25,7 +25,7 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# ⭐ DB URL을 settings에서 주입.
+#  DB URL을 settings에서 주입.
 #    .env의 DB_HOST/PORT/NAME/USER/PASSWORD를 조합해 sqlalchemy_database_uri 만들어 사용.
 #    alembic.ini의 하드코딩 값은 여기서 무효화됨.
 config.set_main_option("sqlalchemy.url", get_settings().sqlalchemy_database_uri)

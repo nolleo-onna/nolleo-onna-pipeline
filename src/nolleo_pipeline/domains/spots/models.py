@@ -12,7 +12,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict
 
 # Literal은 "이 값들 중 하나만 허용" 타입 힌트. DB CHECK 제약과 일치시킨다.
 TagSource = Literal["llm", "rule", "manual"]

@@ -183,7 +183,7 @@ async def _sync_one_content_type(
         content_ids = [
             str(item["contentid"])
             for item in items
-            if isinstance(item.get("contentid"), (str, int))
+            if isinstance(item.get("contentid"), str | int)
         ]
         existing_modified_map = await repo.get_source_modified_times(content_ids)
 
@@ -247,7 +247,8 @@ async def _sync_one_content_type(
                 )
 
         # `arrange=C`(수정일 내림차순) 전제일 때만 안전한 조기 종료.
-        # 현재 페이지가 전부 "변경 없음"이면 다음 페이지는 더 과거 데이터라 즉시 종료해도 누락이 없다.
+        # 현재 페이지가 전부 "변경 없음"이면 다음 페이지는 더 과거 데이터라
+        # 즉시 종료해도 누락이 없다.
         if not bootstrap_mode and page_unchanged_count == len(items):
             _set_type_cursor(ctx, content_type_id, last_cursor)
             return False, True
@@ -308,7 +309,7 @@ def _extract_list_items(payload: dict[str, Any]) -> list[dict[str, Any]]:
 
 def _extract_content_id(item: dict[str, Any]) -> str | None:
     value = item.get("contentid")
-    if isinstance(value, (str, int)):
+    if isinstance(value, str | int):
         text = str(value).strip()
         return text or None
     return None
@@ -413,7 +414,10 @@ def _build_type_budgets(
         base = total_limit // len(content_type_ids)
         budgets = {content_type_id: base for content_type_id in content_type_ids}
     else:
-        weighted_sum = sum(TYPE_BUDGET_WEIGHTS.get(content_type_id, 1.0) for content_type_id in content_type_ids)
+        weighted_sum = sum(
+            TYPE_BUDGET_WEIGHTS.get(content_type_id, 1.0)
+            for content_type_id in content_type_ids
+        )
         for content_type_id in content_type_ids:
             weight = TYPE_BUDGET_WEIGHTS.get(content_type_id, 1.0)
             budgets[content_type_id] = int(total_limit * (weight / weighted_sum))

@@ -103,7 +103,8 @@ def build_raw_snapshot(
 def parse_core(common: dict[str, Any], synced_at: datetime) -> SpotCoreRecord:
     """detailCommon2 응답 → SPOTS_CORE 레코드."""
     return SpotCoreRecord(
-        content_id=str(common["contentid"]),                    # 필수. 없으면 KeyError → 호출자 처리
+        # 필수. 없으면 KeyError → 호출자 처리
+        content_id=str(common["contentid"]),
         content_type_id=str(common["contenttypeid"]),
         title=str(common["title"]).strip(),
         map_x=_float(common.get("mapx")),                        # 경도

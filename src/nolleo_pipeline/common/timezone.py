@@ -9,12 +9,12 @@ DB가 UTC로 잘못 해석할 수도 있고 KST 기준 비교가 깨진다.
 
 from __future__ import annotations  # 타입 힌트를 문자열로 평가 (순환참조 회피용 표준 옵션)
 
-from datetime import datetime, timezone, tzinfo
+from datetime import UTC, datetime, tzinfo
 from zoneinfo import ZoneInfo  # 파이썬 3.9+ 표준 타임존 라이브러리
 
 # 상수 두 개. tzinfo는 datetime에 붙이는 "타임존 객체" 타입.
 KST: tzinfo = ZoneInfo("Asia/Seoul")
-UTC: tzinfo = timezone.utc
+UTC: tzinfo = UTC
 
 def now_utc() -> datetime:
     """ timezone UTC 현재 시각을 반환한다.

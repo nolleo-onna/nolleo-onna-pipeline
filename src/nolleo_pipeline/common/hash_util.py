@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import hashlib
 
+
 def sha256_hex(raw: str) -> str:
     """문자열의 SHA-256 hex 다이제스트(64자)를 반환.
 

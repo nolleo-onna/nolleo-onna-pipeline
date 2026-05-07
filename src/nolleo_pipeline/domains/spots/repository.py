@@ -41,13 +41,12 @@ class SpotsRepository:
         하나라도 실패하면 전체 ROLLBACK. 호출자가 예외 받아서 재시도/skip 결정.
         """
         pool = await get_pool()
-        async with pool.connection() as conn:
-            # ⭐ §14: REPLACE 패턴(images)이 들어 있으므로 단일 트랜잭션 강제.
-            async with conn.transaction():
-                await self._upsert_core(conn, parsed.core)
-                await self._upsert_detail(conn, parsed.detail)
-                await self._upsert_raw(conn, parsed.raw)
-                await self._replace_images(conn, parsed.content_id, parsed.images)
+        # ⭐ §14: REPLACE 패턴(images)이 들어 있으므로 단일 트랜잭션 강제.
+        async with pool.connection() as conn, conn.transaction():
+            await self._upsert_core(conn, parsed.core)
+            await self._upsert_detail(conn, parsed.detail)
+            await self._upsert_raw(conn, parsed.raw)
+            await self._replace_images(conn, parsed.content_id, parsed.images)
 
     async def get_overview_hash(self, content_id: str) -> str | None:
         """SPOT_DETAILS의 현재 overview_hash 조회.

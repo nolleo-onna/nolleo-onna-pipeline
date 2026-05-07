@@ -13,9 +13,10 @@ operation.md §3 SYNC_LOGS: 모든 sync/cron/매칭/LLM 잡의 시작·종료·�
 from __future__ import annotations
 
 import json
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
-from typing import Any, AsyncIterator, cast
+from typing import Any, cast
 
 from nolleo_pipeline.common.db import get_pool
 from nolleo_pipeline.common.timezone import now_utc
@@ -58,19 +59,18 @@ async def sync_log_run(
     pool = await get_pool()
 
     # 1) 시작 행 INSERT
-    async with pool.connection() as conn:
-        async with conn.transaction():
-            row = await conn.execute(
-                """
-                INSERT INTO sync_logs (job_name, run_type, status, started_at)
-                VALUES (%s, %s, 'running', %s)
-                RETURNING id
-                """,
-                (ctx.job_name, ctx.run_type, now_utc()),
-            )
-            result = await row.fetchone()
-            if result is not None:
-                ctx.row_id = cast(dict[str, Any], result)["id"]
+    async with pool.connection() as conn, conn.transaction():
+        row = await conn.execute(
+            """
+            INSERT INTO sync_logs (job_name, run_type, status, started_at)
+            VALUES (%s, %s, 'running', %s)
+            RETURNING id
+            """,
+            (ctx.job_name, ctx.run_type, now_utc()),
+        )
+        result = await row.fetchone()
+        if result is not None:
+            ctx.row_id = cast(dict[str, Any], result)["id"]
 
     # 2) 본 작업 실행 (with 블록)
     try:
@@ -94,33 +94,32 @@ async def _finalize(
     if ctx.row_id is None:
         return
     pool = await get_pool()
-    async with pool.connection() as conn:
-        async with conn.transaction():
-            await conn.execute(
-                """
-                UPDATE sync_logs
-                   SET status = %s,
-                       ended_at = %s,
-                       duration_seconds =
-                           EXTRACT(EPOCH FROM (%s - started_at))::int,
-                       api_calls_used = %s,
-                       records_fetched = %s,
-                       records_upserted = %s,
-                       records_failed = %s,
-                       error_message = %s,
-                       metadata = %s::jsonb
-                 WHERE id = %s
-                """,
-                (
-                    status,
-                    now_utc(),
-                    now_utc(),
-                    ctx.api_calls_used,
-                    ctx.records_fetched,
-                    ctx.records_upserted,
-                    ctx.records_failed,
-                    error_message,
-                    json.dumps(ctx.metadata, ensure_ascii=False),
-                    ctx.row_id,
-                ),
-            )
+    async with pool.connection() as conn, conn.transaction():
+        await conn.execute(
+            """
+            UPDATE sync_logs
+               SET status = %s,
+                   ended_at = %s,
+                   duration_seconds =
+                       EXTRACT(EPOCH FROM (%s - started_at))::int,
+                   api_calls_used = %s,
+                   records_fetched = %s,
+                   records_upserted = %s,
+                   records_failed = %s,
+                   error_message = %s,
+                   metadata = %s::jsonb
+             WHERE id = %s
+            """,
+            (
+                status,
+                now_utc(),
+                now_utc(),
+                ctx.api_calls_used,
+                ctx.records_fetched,
+                ctx.records_upserted,
+                ctx.records_failed,
+                error_message,
+                json.dumps(ctx.metadata, ensure_ascii=False),
+                ctx.row_id,
+            ),
+        )
