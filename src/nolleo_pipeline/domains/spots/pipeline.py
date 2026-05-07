@@ -78,15 +78,6 @@ async def run_tourapi_spots_sync(
         ctx.metadata.setdefault("next_cursor_by_type", {})
         ctx.metadata.setdefault("terminal_page_by_type", dict(terminal_page_by_type))
         ctx.metadata.setdefault("bootstrap_complete", bootstrap_complete_prev)
-        # ── 비활성 처리 metadata (ADR 0003) ──
-        ctx.metadata.setdefault("deactivated_count", 0)
-        ctx.metadata.setdefault("deactivation_skipped", None)
-        ctx.metadata.setdefault("deactivation_skip_reason", None)
-        ctx.metadata.setdefault("deactivation_failure_rate", None)
-        ctx.metadata.setdefault("deactivation_ratio", None)
-
-        sync_started_at = now_utc()
-        ctx.metadata["sync_started_at"] = sync_started_at.isoformat()
 
         # async with build_http_client() → httpx 커넥션 풀 자동 정리.
         async with build_http_client() as http:
@@ -114,21 +105,10 @@ async def run_tourapi_spots_sync(
                 if stopped:
                     break
 
-        # http client 블록 외부, sync_log_run 블록 내부 (ADR 0003)
-        ctx.metadata["bootstrap_complete"] = all(
-            bool(ctx.metadata["terminal_page_by_type"].get(content_type_id, False))
-            for content_type_id in content_type_ids
-        )
-
-        await _deactivate_missing_if_safe(
-            repo=repo,
-            ctx=ctx,
-            regions=[l_dong_regn_cd],
-            content_type_ids=list(content_type_ids),
-            sync_started_at=sync_started_at,
-            max_failure_rate=settings.spots_deactivate_max_failure_rate,
-            max_deactivation_ratio=settings.spots_deactivate_max_ratio,
-        )
+            ctx.metadata["bootstrap_complete"] = all(
+                bool(ctx.metadata["terminal_page_by_type"].get(content_type_id, False))
+                for content_type_id in content_type_ids
+            )
 
 
 async def _sync_one_content_type(
@@ -489,85 +469,6 @@ def _apply_resume_cursor(
         if content_id == target_content_id and modifiedtime == target_modifiedtime:
             return items[index + 1:]
     return items
-
-
-async def _deactivate_missing_if_safe(
-    *,
-    repo: SpotsRepository,
-    ctx: Any,
-    regions: list[str],
-    content_type_ids: list[str],
-    sync_started_at: datetime,
-    max_failure_rate: float,
-    max_deactivation_ratio: float,
-) -> None:
-    """비활성 안전 가드 4종 평가 후 통과 시에만 deactivate_missing 실행 (ADR 0003).
-
-    가드:
-    1. bootstrap_complete — 모든 contentType이 마지막 페이지까지 도달
-    2. !stopped_by_budget — 예산 컷으로 중단되지 않음
-    3. failure_rate < max_failure_rate
-    4. deactivation_ratio < max_deactivation_ratio (dry-run 카운트 기반)
-
-    가드 통과 후 비활성 SQL 실패는 try/except로 흡수 → sync 잡 'failed' 처리 안 함.
-    재등장 복구는 _upsert_core ON CONFLICT가 담당 (단방향 책임 분리).
-    """
-    try:
-        # 가드 2를 먼저 평가해 skip reason을 운영 원인에 더 가깝게 남긴다.
-        if ctx.metadata.get("stopped_by_budget", False):
-            ctx.metadata["deactivation_skipped"] = True
-            ctx.metadata["deactivation_skip_reason"] = "stopped_by_budget"
-            return
-
-        # 가드 1
-        if not ctx.metadata.get("bootstrap_complete", False):
-            ctx.metadata["deactivation_skipped"] = True
-            ctx.metadata["deactivation_skip_reason"] = "partial_sync"
-            return
-
-        # 가드 3
-        denominator = max(ctx.records_fetched, 1)
-        failure_rate = ctx.records_failed / denominator
-        ctx.metadata["deactivation_failure_rate"] = failure_rate
-        if failure_rate >= max_failure_rate:
-            ctx.metadata["deactivation_skipped"] = True
-            ctx.metadata["deactivation_skip_reason"] = "high_failure_rate"
-            return
-
-        # 가드 4 — dry-run 카운트로 비율 계산
-        active_count = await repo.count_active(
-            regions=regions,
-            content_type_ids=content_type_ids,
-        )
-        candidate_count = await repo.count_deactivation_candidates(
-            regions=regions,
-            content_type_ids=content_type_ids,
-            sync_started_at=sync_started_at,
-        )
-        ratio = (candidate_count / active_count) if active_count > 0 else 0.0
-        ctx.metadata["deactivation_ratio"] = ratio
-        if ratio >= max_deactivation_ratio:
-            ctx.metadata["deactivation_skipped"] = True
-            ctx.metadata["deactivation_skip_reason"] = "high_deactivation_ratio"
-            return
-
-        # 모든 가드 통과 → 비활성 실행
-        deactivated = await repo.deactivate_missing(
-            regions=regions,
-            content_type_ids=content_type_ids,
-            sync_started_at=sync_started_at,
-            inactive_since=now_utc(),
-        )
-        ctx.metadata["deactivated_count"] = len(deactivated)
-        ctx.metadata["deactivation_skipped"] = False
-        ctx.metadata["deactivation_skip_reason"] = None
-    except Exception as exc:  # noqa: BLE001
-        # 비활성화 자체 실패는 흡수 — sync 잡 'failed' 만들지 않음 (ADR 0003 §4)
-        ctx.metadata["deactivation_skipped"] = True
-        ctx.metadata["deactivation_skip_reason"] = "exception"
-        ctx.metadata.setdefault("errors", []).append(
-            {"stage": "deactivation", "error": str(exc)[:300]}
-        )
 
 
 async def _load_previous_sync_state(job_name: str) -> dict[str, Any]:

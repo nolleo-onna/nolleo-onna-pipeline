@@ -297,15 +297,7 @@ GPS_RAW_SNAPSHOTS       -- shop_id PK
   - `today_concentration_rate`: 매일 새벽 SPOT_CONGESTION_FORECAST에서 캐시
   - `avg_rating`/`review_count`: USER_REVIEWS 변경 시 동기 + 일 1회 cron 보정
   - `is_good_price`: GOOD_PRICE_SHOPS.matched_spot_id 변경 시 동기
-- **비활성 처리** (상세는 ADR 0003): TourAPI에서 사라지면 `is_active=false` + `inactive_since=NOW()` (hard delete X)
-  - 안전 가드 4종 (AND, 모두 통과 시에만 SQL 실행):
-    1. `bootstrap_complete=True` — 모든 `contentTypeId`가 마지막 페이지까지 도달
-    2. `stopped_by_budget=False` — 예산 컷으로 중단되지 않음
-    3. `failure_rate < SPOTS_DEACTIVATE_MAX_FAILURE_RATE` (default `0.05`)
-    4. `deactivation_ratio < SPOTS_DEACTIVATE_MAX_RATIO` (default `0.2`) — dry-run 카운트로 활성 row 대비 비율 사전 평가
-  - 대상 필터: `source_tour_api=TRUE` (수기 등록 row 보호) + `synced_at < sync_started_at` (이번 회차 갱신분 제외)
-  - 재등장 복구는 `_upsert_core` ON CONFLICT 절(`is_active=TRUE, inactive_since=NULL`)이 담당 — 단방향 책임 분리
-  - 비활성 SQL 자체 실패는 try/except로 흡수 → sync 잡 'success' 유지, `metadata.deactivation_skip_reason='exception'`만 기록
+- **비활성 처리**: TourAPI에서 사라지면 `is_active=false` + `inactive_since=NOW()` (hard delete X)
 - **확장 트리거 (전국)**: 활성 5만 row 또는 `is_open_now()` p95 > 500ms 1주 지속 시 캐시 도입 검토
 
 #### SPOT_DETAILS (Cold)
@@ -607,22 +599,9 @@ GPS_RAW_SNAPSHOTS       -- shop_id PK
     "queued_review": 120,
     "rejected": 30,
     "is_open_now_avg_ms": 0.04,
-    "is_open_now_p95_ms": 0.12,
-    "sync_started_at": "2026-05-07T00:00:00+00:00",
-    "deactivated_count": 0,
-    "deactivation_skipped": null,
-    "deactivation_skip_reason": null,
-    "deactivation_failure_rate": null,
-    "deactivation_ratio": null
+    "is_open_now_p95_ms": 0.12
   }
   ```
-- **비활성 처리 metadata 필드** (ADR 0003, `tourapi_*_sync` job 한정):
-  - `sync_started_at`: sync 본체 시작 직전 캡처 시각 (UTC ISO8601). 비활성 컷오프 기준.
-  - `deactivated_count`: 이번 회차에 비활성 전이된 row 수.
-  - `deactivation_skipped`: `null`(가드 평가 전 잡 종료) / `false`(비활성 실행됨) / `true`(가드 차단).
-  - `deactivation_skip_reason` enum: `partial_sync` | `stopped_by_budget` | `high_failure_rate` | `high_deactivation_ratio` | `exception` | `null`
-  - `deactivation_failure_rate`: 가드 3 평가에 사용된 `records_failed / max(records_fetched, 1)`.
-  - `deactivation_ratio`: 가드 4 dry-run 비율 `candidates / max(active, 1)`.
 - **좀비 job timeout**: 24시간 이상 running → failed 자동 전환 cron
 - **보존 정책**:
   - `success`: 1년 후 cron hard delete
