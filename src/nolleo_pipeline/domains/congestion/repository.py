@@ -256,14 +256,15 @@ class CongestionRepository:
             )
             return row.rowcount
 
-    # ─── 5. 부산 시군구 코드 조회 (LDONG_CODES) ─────────────────
+    # ─── 5. 시군구 코드 조회 (LDONG_CODES, area_cd별) ───────────
 
-    async def list_busan_signgu_codes(self) -> list[tuple[str, str]]:
-        """LDONG_CODES에서 부산(area_cd=26) 시군구 코드 16개 조회.
+    async def list_signgu_codes_by_area(self, area_cd: str) -> list[tuple[str, str]]:
+        """LDONG_CODES에서 특정 area_cd의 시군구 코드 목록 조회.
+
+        부산(area_cd='26')은 16개 시군구. 전국 확장 시 그대로 재사용 가능.
 
         Returns:
             [(area_cd, signgu_cd), ...] 튜플 목록.
-            pipeline이 시군구 루프에 사용.
         """
         pool = await get_pool()
         async with pool.connection() as conn:
@@ -271,9 +272,10 @@ class CongestionRepository:
                 """
                 SELECT regn_cd, signgu_cd
                   FROM ldong_codes
-                 WHERE regn_cd = '26'
+                 WHERE regn_cd = %s
                  ORDER BY signgu_cd
-                """
+                """,
+                (area_cd,),
             )
             records = await row.fetchall()
             typed = cast(list[dict[str, Any]], records)
