@@ -2,7 +2,7 @@
 
 - 상태: Proposed
 - 일자: 2026-05-07
-- 적용 범위: SPOTS sync 잡의 `SPOTS_CORE.is_active` 비활성 전이 (TourAPI 관광지 ContentTypeId 12/14/39)
+- 적용 범위: SPOTS sync 잡의 `SPOTS_CORE.is_active` 비활성 전이 (TourAPI ContentTypeId 12/14/28/39)
 
 ## Context
 
