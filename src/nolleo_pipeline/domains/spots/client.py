@@ -59,7 +59,7 @@ class TourApiSpotClient:
         """
         params = self._base_params() | {
             "lDongRegnCd": l_dong_regn_cd,                        # 부산 = '26'
-            "contentTypeId": content_type_id,                     # '12'/'14'/'39'
+            "contentTypeId": content_type_id,                     # '12'/'14'/'28'/'39'
             "pageNo": str(page),
             "numOfRows": str(num_of_rows),
             "arrange": "C",                                       # 수정일 역순
