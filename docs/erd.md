@@ -20,7 +20,7 @@
 | 착한가격        | GOOD_PRICE_SHOPS, GOOD_PRICE_MATCH_QUEUE, GOOD_PRICE_SHOP_PRICES, GOOD_PRICE_PRICE_OBSERVATIONS, GPS_RAW_SNAPSHOTS, GOOD_PRICE_LOCALE_CODES | 부산 가성비 매장       |
 | 검수 큐        | BUSINESS_HOURS_REVIEW_QUEUE                                                                                      | LLM 신뢰도         |
 | 태그          | TAGS                                                                                                             | 통제어휘 + 자유태그 마스터 |
-| 코드/날씨 마스터   | LDONG_CODES, LCLS_SYSTM_CODES, WEATHER_GRIDS, WEATHER_CACHE                                                      | 지역/분류/날씨        |
+| 코드/날씨·대기질 마스터 | LDONG_CODES, LCLS_SYSTM_CODES, WEATHER_GRIDS, WEATHER_CACHE, AIR_QUALITY_STATIONS, AIR_QUALITY_CACHE (DDL 예정) | 지역/분류/날씨/미세먼지 |
 | 운영          | SYNC_LOGS                                                                                                        | 파이프라인 추적        |
 
 
@@ -667,6 +667,28 @@ erDiagram
         timestamp expires_at "만료시각"
     }
 
+    AIR_QUALITY_STATIONS {
+        varchar regn_cd "시도26"
+        varchar signgu_cd PK "시군구3자리"
+        varchar station_name UK "에어코리아측정소명"
+    }
+
+    AIR_QUALITY_CACHE {
+        bigserial id PK "내부ID"
+        varchar signgu_cd FK "시군구"
+        timestamp observed_at "측정또는예보시각"
+        varchar record_kind "realtime_forecast"
+        varchar inform_code "PM10_PM25_O3"
+        numeric pm10_value "미세먼지농도"
+        numeric pm25_value "초미세먼지농도"
+        varchar pm10_grade "등급"
+        varchar pm25_grade "등급"
+        text forecast_overall "예보개황"
+        text forecast_cause "발생원인"
+        timestamp fetched_at "호출시각"
+        timestamp expires_at "만료시각"
+    }
+
     SYNC_LOGS {
         bigserial id PK "내부ID"
         varchar job_name "잡이름"
@@ -748,6 +770,8 @@ erDiagram
     LDONG_CODES ||--o{ WEATHER_GRIDS : "시군구 매핑"
     LCLS_SYSTM_CODES ||--o{ SPOTS_CORE : "분류체계"
     WEATHER_GRIDS ||--o{ WEATHER_CACHE : "날씨 시계열"
+    LDONG_CODES ||--o{ AIR_QUALITY_STATIONS : "구별측정소"
+    AIR_QUALITY_STATIONS ||--o{ AIR_QUALITY_CACHE : "대기질 시계열"
 ```
 
 

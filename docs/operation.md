@@ -12,15 +12,16 @@
 
 | #   | API 이름                               | 대표 키                       | RAW 저장 테이블              | 정규화 테이블 (적재 순서)                                                                         | 비고                                                 |
 | --- | ------------------------------------ | -------------------------- | ----------------------- | --------------------------------------------------------------------------------------- | -------------------------------------------------- |
-| 1   | TourAPI 관광지 (ContentTypeId 12/14/39) | `content_id`               | `SPOTS_RAW_SNAPSHOTS`   | `SPOTS_CORE` → `SPOT_DETAILS` → `SPOT_IMAGES` → (LLM) → `SPOT_TAGS` + `SPOT_EMBEDDINGS` | 4개 endpoint 통합 (detailCommon2/Intro2/Info2/Image2) |
-| 2   | TourAPI 행사 (ContentTypeId 15)        | `content_id`               | `EVENTS_RAW_SNAPSHOTS`  | `EVENTS_CORE` → `EVENT_DETAILS` → `EVENT_IMAGES` → (LLM) → `EVENT_EMBEDDINGS`           | searchFestival2 + detail*                          |
-| 3   | TourAPI 여행코스 (ContentTypeId 25)      | `content_id`               | `COURSES_RAW_SNAPSHOTS` | `TRAVEL_COURSES` → `COURSE_ITEMS` → (LLM) → `TRAVEL_COURSE_EMBEDDINGS`                  | detailInfo2의 하위 스팟 1:N                             |
-| 4   | TourAPI 혼잡도 (TatsCnctrRateService)   | `(tAtsNm, baseYmd)`        | (RAW 미보관)               | `SPOT_CONGESTION_FORECAST`                                                              | content_id 매칭 시도, 실패 시 NULL                        |
-| 5   | 부산 착한가격업소 (getMulgaInfoList)         | `idx`                      | `GPS_RAW_SNAPSHOTS`     | `GOOD_PRICE_SHOPS` → `GOOD_PRICE_MATCH_QUEUE`                                           | XML → JSONB 변환                                     |
+| 1   | TourAPI 관광지 (ContentTypeId 12/14/39) ([공공데이터포털](https://www.data.go.kr/data/15101578/openapi.do)) | `content_id`               | `SPOTS_RAW_SNAPSHOTS`   | `SPOTS_CORE` → `SPOT_DETAILS` → `SPOT_IMAGES` → (LLM) → `SPOT_TAGS` + `SPOT_EMBEDDINGS` | 4개 endpoint 통합 (detailCommon2/Intro2/Info2/Image2) |
+| 2   | TourAPI 행사 (ContentTypeId 15) ([공공데이터포털](https://www.data.go.kr/data/15101578/openapi.do))        | `content_id`               | `EVENTS_RAW_SNAPSHOTS`  | `EVENTS_CORE` → `EVENT_DETAILS` → `EVENT_IMAGES` → (LLM) → `EVENT_EMBEDDINGS`           | searchFestival2 + detail*                          |
+| 3   | TourAPI 여행코스 (ContentTypeId 25) ([공공데이터포털](https://www.data.go.kr/data/15101578/openapi.do))      | `content_id`               | `COURSES_RAW_SNAPSHOTS` | `TRAVEL_COURSES` → `COURSE_ITEMS` → (LLM) → `TRAVEL_COURSE_EMBEDDINGS`                  | detailInfo2의 하위 스팟 1:N                             |
+| 4   | TourAPI 혼잡도 (TatsCnctrRateService) ([공공데이터포털](https://www.data.go.kr/data/15128555/openapi.do))   | `(tAtsNm, baseYmd)`        | (RAW 미보관)               | `SPOT_CONGESTION_FORECAST`                                                              | content_id 매칭 시도, 실패 시 NULL                        |
+| 5   | 부산 착한가격업소 (getMulgaInfoList) ([공공데이터포털](https://www.data.go.kr/data/15004512/openapi.do))         | `idx`                      | `GPS_RAW_SNAPSHOTS`     | `GOOD_PRICE_SHOPS` → `GOOD_PRICE_MATCH_QUEUE`                                           | XML → JSONB 변환                                     |
 | 6   | 카카오 지오코딩                             | (주소)                       | (RAW 미보관)               | `GOOD_PRICE_SHOPS.map_x/y` UPDATE                                                       | 좌표 보충용, 실패 시 `geocode_failed=true`                 |
-| 7   | 기상청 단기예보                             | `(signgu_cd, observed_at)` | (RAW 미보관)               | `WEATHER_CACHE`                                                                         | TTL 15분, 시군구 16개 격자                                |
-| 8   | 운영자 수기 가격 입력                           | `(shop_id, item_name)`     | (RAW 미보관)               | `GOOD_PRICE_PRICE_OBSERVATIONS(approved)` → `GOOD_PRICE_SHOP_PRICES`                    | 초기 MVP 핵심, 크롤링 없이 운영                           |
-| 9   | 사용자 가격 제보                              | `observation_id`           | (RAW 미보관)               | `GOOD_PRICE_PRICE_OBSERVATIONS(pending→approved/rejected)` → `GOOD_PRICE_SHOP_PRICES`   | 증빙 기반 검수 후 반영                                  |
+| 7   | 기상청 단기예보 ([공공데이터포털](https://www.data.go.kr/tcs/dss/selectApiDataDetailView.do?publicDataPk=15084084))                             | `(signgu_cd, observed_at)` | (RAW 미보관)               | `WEATHER_CACHE`                                                                         | 발표 주기·`base_time` 기준 TTL/sync (§3 WEATHER_CACHE), 시군구 16개 격자 |
+| 8   | 에어코리아 대기오염정보 ([공공데이터포털](https://www.data.go.kr/tcs/dss/selectApiDataDetailView.do?publicDataPk=15073861)) | `(signgu_cd, observed_at, record_kind, inform_code)` | (RAW 미보관) | `AIR_QUALITY_STATIONS` (시드) → `AIR_QUALITY_CACHE` | **시군구 16개** (`LDONG_CODES` 3자리 `signgu_cd`와 동일). 실시간=구별 대표 측정소, 예보=시·도 단위 응답을 16구에 fan-out |
+| 9   | 운영자 수기 가격 입력                           | `(shop_id, item_name)`     | (RAW 미보관)               | `GOOD_PRICE_PRICE_OBSERVATIONS(approved)` → `GOOD_PRICE_SHOP_PRICES`                    | 초기 MVP 핵심, 크롤링 없이 운영                           |
+| 10  | 사용자 가격 제보                              | `observation_id`           | (RAW 미보관)               | `GOOD_PRICE_PRICE_OBSERVATIONS(pending→approved/rejected)` → `GOOD_PRICE_SHOP_PRICES`   | 증빙 기반 검수 후 반영                                  |
 
 
 ### LLM/임베딩 파생 산출물
@@ -57,6 +58,7 @@ USER_EMBEDDINGS         -- user_id PK
 VISIT_HISTORY           -- (user_id, spot_content_id) UK
 BOOKMARK_COLLECTIONS    -- (user_id, collection_type) 시스템 폴더만
 WEATHER_CACHE           -- (signgu_cd, observed_at) UK
+AIR_QUALITY_CACHE       -- (signgu_cd, observed_at, record_kind, inform_code) UK — forecast만 inform_code 사용
 SPOT_CONGESTION_FORECAST -- partial UK 2종 (matched / unmatched 분리)
 ```
 
@@ -205,6 +207,13 @@ GPS_RAW_SNAPSHOTS       -- shop_id PK
       "sky_condition": 4,
       "temp_c": 22.3,
       "reason": "비 예보로 실외 체류 위험"
+    },
+    "air_quality": {
+      "signgu_cd": "350",
+      "pm25_grade": "나쁨",
+      "pm10_grade": "보통",
+      "record_kind": "realtime",
+      "reason": "해운대구 초미세먼지 나쁨으로 실외 체류 축소"
     },
     "congestion": {
       "level": 4,
@@ -564,12 +573,66 @@ GPS_RAW_SNAPSHOTS       -- shop_id PK
 #### WEATHER_CACHE
 
 - **PostgreSQL 유지 이유**: 시계열·범위 쿼리 적합 (Redis 부적합)
-- **TTL**: 15분 (`expires_at = fetched_at + 15분`)
-- **기상청 표준 코드**:
+- **캐시 소스 (기상청 [단기예보 조회서비스](https://www.data.go.kr/tcs/dss/selectApiDataDetailView.do?publicDataPk=15084084))** — `WEATHER_GRIDS.kma_nx/ny` 격자 기준, 시군구 16회 호출:
+  - **단기예보** `getVilageFcst` — 발표 **하루 8회**(02·05·08·11·14·17·20·23시, KST). 동일 `base_date`/`base_time` 구간에서는 값이 바뀌지 않으므로 **15분 고정 폴링·TTL은 금지**(헛 API 호출·헛 upsert).
+  - **초단기예보** `getUltraSrtFcst` — **매시 정시** 발표, 약 6시간 구간. 코스 생성 시 “오늘 오후” 강수·하늘 판단용으로 병행 권장.
+- **`observed_at`**: API `baseDate` + `baseTime`을 KST `TIMESTAMPTZ`로 저장 (§11.2). UK `(signgu_cd, observed_at)`의 시각 축.
+- **sync cron (권장)**:
+  - `getVilageFcst`: 위 8개 발표 시각 **+ 30분** (자료 반영 지연 여유) — 하루 8회 × 16구
+  - `getUltraSrtFcst`: **매시 :15** (발표 직후 여유) — 하루 24회 × 16구 (호출 한도 부담 시 단기만 MVP 가능, 문서·SYNC_LOGS에 `sources` 명시)
+  - 잡 이름: `kma_vilage_fcst_sync`, `kma_ultra_srt_fcst_sync` (또는 단일 `kma_weather_sync`에 metadata로 구분)
+- **`expires_at` (TTL)** — `fetched_at + 고정 N분` 단일 규칙 사용 금지:
+  - 단기예보 행: `expires_at = next_vilage_issue_at` (다음 발표 시각 KST, 목록: 02:00 … 23:00 순환) — 없으면 `fetched_at + 3시간`
+  - 초단기예보 행: `expires_at = LEAST(next_hour_issue_at, fetched_at + 60분)`
+  - 구현 전 placeholder: 기존 DDL의 `expires_at NOT NULL` 유지, 파이프라인에서 위 규칙으로 계산해 INSERT
+- **기상청 표준 코드** (파싱 SoT):
   - `pty` (강수형태): 0(없음)/1(비)/2(비눈)/3(눈)/5(빗방울)/6(빗방울눈)/7(눈날림)
   - `sky_condition` (하늘상태): 1(맑음)/3(구름많음)/4(흐림)
-- **미래 24시간 예보 보관**, 과거 7일 후 cron 삭제
+- **미래 24시간 예보 보관**, 과거 7일 후 `weather_cache_cleanup` cron 삭제
 - **코스 생성 시점 날씨**: GENERATED_COURSES.weather_at_gen JSONB로 별도 스냅샷 (이력 추적)
+- **조회**: `SPOTS_CORE.l_dong_signgu_cd` = `signgu_cd`, `observed_at`은 코스 시작 시각에 가장 가까운 **미만료** 행 (단기·초단기 중 product 정책은 Spring/코스엔진에서 확정)
+
+#### 대기질(미세먼지) — 시군구 단위 정책 ⭐
+
+**부산시 전체 vs 16구별 — 차이와 선택**
+
+| 구분 | API 예시 (에어코리아) | 저장 단위 | 놀러온나 적용 |
+| --- | --- | --- | --- |
+| **부산시 전체** | `getCtprvnRltmMesureDnsty` (시도별 실시간) | 부산 1행 | 스팟·코스는 `l_dong_signgu_cd`로 **구 단위**인데 값이 1개뿐이라 해운대·기장 등 구 간 차이 반영 불가 |
+| **16구별** | `getMsrstnAcctoRltmMesureDnsty` (측정소별 실시간) + 구별 대표 측정소 매핑 | `signgu_cd` 16행 | `WEATHER_CACHE`·`SPOT_CONGESTION_FORECAST`·`SPOTS_CORE.l_dong_signgu_cd`와 **동일 키**로 조회·코스 생성 가능 |
+
+**확정**: 미세먼지도 날씨·혼잡도와 같이 **부산 16개 시군구(`LDONG_CODES.signgu_cd`, 3자리)** 단위. 부산시 통합 1값 API는 마스터/캐시 SoT로 쓰지 않는다.
+
+**에어코리아 엔드포인트 매핑 (구현 시)**
+
+| 용도 | operation.md 기능명 | 엔드포인트 | `record_kind` | 비고 |
+| --- | --- | --- | --- | --- |
+| 실시간 | 측정소별 실시간 측정정보 조회 | `getMsrstnAcctoRltmMesureDnsty` | `realtime` | `AIR_QUALITY_STATIONS`에 등록된 구별 대표 `stationName` 1곳당 1행 적재 |
+| 예보 | 대기질 예보통보 조회 | `getMinuDustFrcstDspth` | `forecast` | `InformCode`=`PM10`/`PM25`/`O3`. 응답 `informGrade`는 **시·도 단위**(`부산: 나쁨` 등) → 파싱 후 **16개 `signgu_cd`에 동일 등급 fan-out** (원문은 시·도 단위임을 UI/로그에 명시 가능) |
+
+서비스 베이스 URL: `http://apis.data.go.kr/B552584/ArpltnInforInqireSvc`  
+공공데이터포털 활용신청·개발계정 일일 트래픽(500건)은 [데이터 상세](https://www.data.go.kr/tcs/dss/selectApiDataDetailView.do?publicDataPk=15073861) 참고. sync 주기는 트래픽에 맞춰 별도 cron 정의(기상 §3 WEATHER_CACHE 발표 주기와 무관하게 **시간당 1회 이하** 권장).
+
+#### AIR_QUALITY_STATIONS (마스터, DDL 예정)
+
+- **역할**: `signgu_cd`(3자리) ↔ 에어코리아 **대표 측정소명** (`stationName`) 1:1
+- **FK**: `(regn_cd, signgu_cd)` → `LDONG_CODES` (`regn_cd='26'` 부산 16구 시드와 동일 집합)
+- **시드**: 부산 16구 각 1측정소 (예: 중구→중앙동, 해운대구→해운대, 기장군→기장읍). 측정소명 변경 시 마스터만 수정
+- **변경 빈도**: 매우 낮음 (측정소 개·폐쇄 시만)
+
+#### AIR_QUALITY_CACHE (시계열 캐시, DDL 예정)
+
+- **PostgreSQL** — `WEATHER_CACHE`와 동일 패턴 (시계열·범위 쿼리)
+- **조회 키**: `signgu_cd` + `observed_at` (+ `record_kind`, forecast 시 `inform_code`)
+- **TTL**: 60분 권장 (`expires_at = fetched_at + 60분`) — 에어코리아 일일 호출 한도·구별 측정소 호출 수 고려 (기상은 §3 WEATHER_CACHE처럼 **발표·측정 주기** 기준)
+- **컬럼(안)**:
+  - `record_kind`: `realtime` | `forecast`
+  - `inform_code`: forecast 시 `PM10`/`PM25`/`O3`, realtime은 NULL
+  - `pm10_value`, `pm25_value`, `pm10_grade`, `pm25_grade` (등급: 좋음/보통/나쁨/매우나쁨)
+  - forecast 전용: `forecast_overall`, `forecast_cause` (API `infornOverall`, `informCause`)
+- **보관**: 미래 예보·최근 실시간 위주, 과거 7일 후 `air_quality_cache_cleanup` cron 삭제 (`weather_cache_cleanup`과 동일 정책)
+- **코스 생성 lookup**: `SPOTS_CORE.l_dong_signgu_cd` = `AIR_QUALITY_CACHE.signgu_cd` (날씨 lookup과 동일 조인 패턴)
+- **코스 생성 시점 스냅샷**: `GENERATED_COURSES.weather_at_gen` JSONB에 `air_quality` 블록 추가 **또는** 별도 `environment_at_gen`으로 통합 — Spring 계약 확정 전까지 evidence 스키마(`air_quality` 키)를 우선 SoT로 둠
 
 #### GOOD_PRICE_LOCALE_CODES
 
@@ -587,14 +650,14 @@ GPS_RAW_SNAPSHOTS       -- shop_id PK
 
 - **모든 sync/cron/매칭/LLM/회귀 job 통합 추적**
 - **job 카테고리**:
-  - 데이터 수집: tourapi_spots/events/courses/congestion_sync, goodprice_sync
+  - 데이터 수집: tourapi_spots/events/courses/congestion_sync, goodprice_sync, kma_vilage_fcst_sync, kma_ultra_srt_fcst_sync, airkorea_sync
   - 지오코딩: goodprice_geocoding
   - LLM: spot_overview_summary, spot_tags_extract, spot/event/course_embedding, business_hours_normalize
   - 매칭: goodprice_matching, congestion_matching, course_items_matching
   - 사용자 임베딩: user_embedding_recompute
   - 캐시 갱신: today_concentration_cache_refresh, avg_rating_recalc, bookmark_count_recalc
   - 자동 한끗: hankkut_auto_event_generation, hankkut_archive_expired
-  - 정리: weather_cache_cleanup, soft_delete_purge
+  - 정리: weather_cache_cleanup, air_quality_cache_cleanup, soft_delete_purge
   - 회귀: embedding_full_recompute, business_hours_regression_test
   - 모니터링: is_open_now_perf_check
 - **metadata 표준 필드**:
@@ -919,6 +982,8 @@ ORDER BY pg_relation_size(indexrelid) DESC;
 | TAGS                              | RW                   | R            | 파이썬 자동 추가, Spring 검색만  |
 | WEATHER_CACHE                     | RW                   | R            | 파이썬 sync, Spring 조회    |
 | WEATHER_GRIDS                     | R (시드)               | R            | 마스터                    |
+| AIR_QUALITY_CACHE                 | RW                   | R            | 파이썬 sync, Spring 조회 (DDL 예정) |
+| AIR_QUALITY_STATIONS              | R (시드)               | R            | 구별 측정소 마스터 (DDL 예정)   |
 | LDONG_CODES                       | R (시드)               | R            | 마스터                    |
 | LCLS_SYSTM_CODES                  | R (시드)               | R            | 마스터                    |
 | GOOD_PRICE_LOCALE_CODES           | R (시드)               | R            | 마스터                    |
@@ -1101,7 +1166,7 @@ WHERE ST_DWithin(geog, :center, 2000)   -- GiST 인덱스
 - `inactive_since`, `concentration_updated_at`, `rating_updated_at`, `trend_updated_at`
 - `business_hours_parsed_at`, `business_hours_verified_at`, `business_hours_stale_after`
 - `geocoded_at`, `source_modified_time`, `source_created_at`, `created_time`
-- `expires_at`, `observed_at` (WEATHER_CACHE)
+- `expires_at`, `observed_at`, `fetched_at` — 시계열 환경 캐시 (`WEATHER_CACHE`, `AIR_QUALITY_CACHE` 및 동일 패턴 테이블). `observed_at`은 API 관측·발표 시각(`baseDate`/`baseTime`, 측정 `dataTime` 등)을 KST `TIMESTAMPTZ`로 정규화
 
 ### 11.3 DEFAULT 값
 
@@ -1146,7 +1211,7 @@ GRANT INSERT, UPDATE, DELETE, SELECT ON
   events_core, event_details, event_embeddings, events_raw_snapshots, event_images,
   travel_courses, travel_course_embeddings, courses_raw_snapshots, course_items,
   good_price_shops, gps_raw_snapshots,
-  tags, weather_cache,
+  tags, weather_cache, air_quality_cache,
   user_embeddings,
   sync_logs
 TO pipeline_user;
@@ -1162,7 +1227,7 @@ TO pipeline_user;
 GRANT SELECT ON
   good_price_price_observations,  -- 1단계: 파이썬은 조회만, 2단계(crawler)부터 INSERT 부여
   good_price_shop_prices,
-  weather_grids, ldong_codes, lcls_systm_codes, good_price_locale_codes
+  weather_grids, air_quality_stations, ldong_codes, lcls_systm_codes, good_price_locale_codes
 TO pipeline_user;
  
 -- 사용자 데이터 (분석용 읽기, 쓰기 금지)
@@ -1199,7 +1264,7 @@ GRANT SELECT ON
   events_core, event_details, event_embeddings, event_images,
   travel_courses, travel_course_embeddings, course_items,
   good_price_shops,
-  tags, weather_cache, weather_grids,
+  tags, weather_cache, weather_grids, air_quality_cache, air_quality_stations,
   ldong_codes, lcls_systm_codes, good_price_locale_codes,
   user_embeddings  -- 파이썬이 갱신, Spring은 조회만
 TO app_user;
@@ -1358,7 +1423,7 @@ WHERE object_type = 'SEQUENCE';
 
 **job_name 네임스페이스 규약**:
 
-- 파이썬: `tourapi_*`, `embedding_*`, `llm_*`, `geocoding_*`, `hankkut_auto_*`, `weather_*`, `congestion_*`
+- 파이썬: `tourapi_*`, `embedding_*`, `llm_*`, `geocoding_*`, `hankkut_auto_*`, `weather_*`, `airkorea_*`, `congestion_*`
 - Spring: `user_*`, `course_*`, `notification_*`, `bookmark_*`
 - 서로의 prefix 사용 금지
 

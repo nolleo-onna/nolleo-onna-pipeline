@@ -2,7 +2,7 @@
 
 operation.md §3 코드/날씨 마스터 #WEATHER_CACHE / ERD §WEATHER_CACHE.
 
-- TTL: 15분 (`expires_at = fetched_at + 15분`)
+- TTL: operation.md §3 WEATHER_CACHE — 발표 주기·next_issue_at 기준 (고정 15분 아님)
 - 기상청 표준 코드:
   - pty (강수형태): 0/1/2/3/5/6/7
   - sky_condition (하늘상태): 1/3/4
