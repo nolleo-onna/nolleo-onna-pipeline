@@ -30,9 +30,14 @@ from nolleo_pipeline.domains.spots.repository import SpotsRepository
 # (구 KorService 1.x의 areaCode="6"과는 다른 체계 — 매뉴얼 v4.4 §1 참조)
 DEFAULT_BUSAN_REGN_CD = "26"
 
-# 동기화할 contentTypeId. 12=관광지, 14=문화시설, 39=음식점.
-SPOT_CONTENT_TYPE_IDS = ("12", "14", "39")
-TYPE_BUDGET_WEIGHTS: dict[str, float] = {"12": 0.5, "14": 0.25, "39": 0.25}
+# 동기화할 contentTypeId. 12=관광지, 14=문화시설, 28=레포츠, 39=음식점.
+SPOT_CONTENT_TYPE_IDS = ("12", "14", "28", "39")
+TYPE_BUDGET_WEIGHTS: dict[str, float] = {
+    "12": 0.4,
+    "14": 0.2,
+    "28": 0.2,
+    "39": 0.2,
+}
 
 
 async def run_tourapi_spots_sync(
@@ -46,7 +51,7 @@ async def run_tourapi_spots_sync(
 
     Args:
         l_dong_regn_cd: 법정동 시도 코드. 기본 부산("26").
-        content_type_ids: 관광지(12), 문화시설(14), 음식점(39).
+        content_type_ids: 관광지(12), 문화시설(14), 레포츠(28), 음식점(39).
         num_of_rows: 한 페이지당 행 수 (TourAPI 권고: 최대 100).
         max_pages: 디버그용 페이지 제한. None이면 끝까지.
     """

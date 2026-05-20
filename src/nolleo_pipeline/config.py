@@ -45,7 +45,7 @@ class Settings(BaseSettings):
     openai_llm_model: str = Field(
         default="gpt-4o-mini", alias="OPENAI_LLM_MODEL"
     )
-    daily_api_call_limit: int = Field(default=900, alias="DAILY_API_CALL_LIMIT")
+    daily_api_call_limit: int = Field(default=10000, alias="DAILY_API_CALL_LIMIT")
     # ── 비활성 안전 가드 (ADR 0003) ────────────────────
     spots_deactivate_max_failure_rate: float = Field(
         default=0.05, alias="SPOTS_DEACTIVATE_MAX_FAILURE_RATE"

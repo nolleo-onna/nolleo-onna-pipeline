@@ -219,7 +219,7 @@ erDiagram
 
     SPOTS_CORE {
         varchar content_id PK "콘텐츠ID"
-        varchar content_type_id "12_14_39"
+        varchar content_type_id "12_14_28_39"
         varchar title "이름"
         boolean source_tour_api "투어API출처"
         boolean source_busan_food "미식투어출처"

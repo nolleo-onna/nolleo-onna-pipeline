@@ -66,7 +66,7 @@ async def _call(repo: SpotsRepository, ctx: Any) -> None:
         repo=repo,
         ctx=ctx,
         regions=["26"],
-        content_type_ids=["12", "14", "39"],
+        content_type_ids=["12", "14", "28", "39"],
         sync_started_at=datetime(2026, 5, 7, 0, 0, tzinfo=UTC),
         max_failure_rate=0.05,
         max_deactivation_ratio=0.2,
