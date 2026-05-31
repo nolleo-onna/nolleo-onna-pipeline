@@ -10,18 +10,18 @@
 ### 외부 API/운영 입력 → 정규화 테이블 매핑
 
 
-| #   | API 이름                               | 대표 키                       | RAW 저장 테이블              | 정규화 테이블 (적재 순서)                                                                         | 비고                                                 |
-| --- | ------------------------------------ | -------------------------- | ----------------------- | --------------------------------------------------------------------------------------- | -------------------------------------------------- |
-| 1   | TourAPI 관광지 (ContentTypeId 12/14/28/39) ([공공데이터포털](https://www.data.go.kr/data/15101578/openapi.do)) | `content_id`               | `SPOTS_RAW_SNAPSHOTS`   | `SPOTS_CORE` → `SPOT_DETAILS` → `SPOT_IMAGES` → (LLM) → `SPOT_TAGS` + `SPOT_EMBEDDINGS` | 12=관광지, 14=문화시설, 28=레포츠, 39=음식점. 4 endpoint 통합 |
-| 2   | TourAPI 행사 (ContentTypeId 15) ([공공데이터포털](https://www.data.go.kr/data/15101578/openapi.do))        | `content_id`               | `EVENTS_RAW_SNAPSHOTS`  | `EVENTS_CORE` → `EVENT_DETAILS` → `EVENT_IMAGES` → (LLM) → `EVENT_EMBEDDINGS`           | searchFestival2 + detail*                          |
-| 3   | TourAPI 여행코스 (ContentTypeId 25) ([공공데이터포털](https://www.data.go.kr/data/15101578/openapi.do))      | `content_id`               | `COURSES_RAW_SNAPSHOTS` | `TRAVEL_COURSES` → `COURSE_ITEMS` → (LLM) → `TRAVEL_COURSE_EMBEDDINGS`                  | detailInfo2의 하위 스팟 1:N                             |
-| 4   | TourAPI 혼잡도 (TatsCnctrRateService) ([공공데이터포털](https://www.data.go.kr/data/15128555/openapi.do))   | `(tAtsNm, baseYmd)`        | (RAW 미보관)               | `SPOT_CONGESTION_FORECAST`                                                              | content_id 매칭 시도, 실패 시 NULL                        |
-| 5   | 부산 착한가격업소 (getMulgaInfoList) ([공공데이터포털](https://www.data.go.kr/data/15004512/openapi.do))         | `idx`                      | `GPS_RAW_SNAPSHOTS`     | `GOOD_PRICE_SHOPS` → `GOOD_PRICE_MATCH_QUEUE`                                           | XML → JSONB 변환                                     |
-| 6   | 카카오 지오코딩                             | (주소)                       | (RAW 미보관)               | `GOOD_PRICE_SHOPS.map_x/y` UPDATE                                                       | 좌표 보충용, 실패 시 `geocode_failed=true`                 |
-| 7   | 기상청 단기예보 ([공공데이터포털](https://www.data.go.kr/tcs/dss/selectApiDataDetailView.do?publicDataPk=15084084))                             | `(signgu_cd, observed_at)` | (RAW 미보관)               | `WEATHER_CACHE`                                                                         | 발표 주기·`base_time` 기준 TTL/sync (§3 WEATHER_CACHE), 시군구 16개 격자 |
-| 8   | 에어코리아 대기오염정보 ([공공데이터포털](https://www.data.go.kr/tcs/dss/selectApiDataDetailView.do?publicDataPk=15073861)) | `(signgu_cd, observed_at, record_kind, inform_code)` | (RAW 미보관) | `AIR_QUALITY_STATIONS` (시드) → `AIR_QUALITY_CACHE` | **시군구 16개** (`LDONG_CODES` 3자리 `signgu_cd`와 동일). 실시간=구별 대표 측정소, 예보=시·도 단위 응답을 16구에 fan-out |
-| 9   | 운영자 수기 가격 입력                           | `(shop_id, item_name)`     | (RAW 미보관)               | `GOOD_PRICE_PRICE_OBSERVATIONS(approved)` → `GOOD_PRICE_SHOP_PRICES`                    | 초기 MVP 핵심, 크롤링 없이 운영                           |
-| 10  | 사용자 가격 제보                              | `observation_id`           | (RAW 미보관)               | `GOOD_PRICE_PRICE_OBSERVATIONS(pending→approved/rejected)` → `GOOD_PRICE_SHOP_PRICES`   | 증빙 기반 검수 후 반영                                  |
+| #   | API 이름                                                                                                    | 대표 키                                                 | RAW 저장 테이블              | 정규화 테이블 (적재 순서)                                                                         | 비고                                                                                         |
+| --- | --------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- | ----------------------- | --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| 1   | TourAPI 관광지 (ContentTypeId 12/14/28/39) ([공공데이터포털](https://www.data.go.kr/data/15101578/openapi.do))      | `content_id`                                         | `SPOTS_RAW_SNAPSHOTS`   | `SPOTS_CORE` → `SPOT_DETAILS` → `SPOT_IMAGES` → (LLM) → `SPOT_TAGS` + `SPOT_EMBEDDINGS` | 12=관광지, 14=문화시설, 28=레포츠, 39=음식점. 4 endpoint 통합                                             |
+| 2   | TourAPI 행사 (ContentTypeId 15) ([공공데이터포털](https://www.data.go.kr/data/15101578/openapi.do))                | `content_id`                                         | `EVENTS_RAW_SNAPSHOTS`  | `EVENTS_CORE` → `EVENT_DETAILS` → `EVENT_IMAGES` → (LLM) → `EVENT_EMBEDDINGS`           | searchFestival2 + detail*                                                                  |
+| 3   | TourAPI 여행코스 (ContentTypeId 25) ([공공데이터포털](https://www.data.go.kr/data/15101578/openapi.do))              | `content_id`                                         | `COURSES_RAW_SNAPSHOTS` | `TRAVEL_COURSES` → `COURSE_ITEMS` → (LLM) → `TRAVEL_COURSE_EMBEDDINGS`                  | detailInfo2의 하위 스팟 1:N                                                                     |
+| 4   | TourAPI 혼잡도 (TatsCnctrRateService) ([공공데이터포털](https://www.data.go.kr/data/15128555/openapi.do))           | `(tAtsNm, baseYmd)`                                  | (RAW 미보관)               | `SPOT_CONGESTION_FORECAST`                                                              | content_id 매칭 시도, 실패 시 NULL                                                                |
+| 5   | 부산 착한가격업소 (getMulgaInfoList) ([공공데이터포털](https://www.data.go.kr/data/15004512/openapi.do))                 | `idx`                                                | `GPS_RAW_SNAPSHOTS`     | `GOOD_PRICE_SHOPS` → `GOOD_PRICE_MATCH_QUEUE`                                           | XML → JSONB 변환                                                                             |
+| 6   | 카카오 지오코딩                                                                                                  | (주소)                                                 | (RAW 미보관)               | `GOOD_PRICE_SHOPS.map_x/y` UPDATE                                                       | 좌표 보충용, 실패 시 `geocode_failed=true`                                                         |
+| 7   | 기상청 단기예보 ([공공데이터포털](https://www.data.go.kr/tcs/dss/selectApiDataDetailView.do?publicDataPk=15084084))     | `(signgu_cd, observed_at)`                           | (RAW 미보관)               | `WEATHER_CACHE`                                                                         | 발표 주기·`base_time` 기준 TTL/sync (§3 WEATHER_CACHE), 시군구 16개 격자                               |
+| 8   | 에어코리아 대기오염정보 ([공공데이터포털](https://www.data.go.kr/tcs/dss/selectApiDataDetailView.do?publicDataPk=15073861)) | `(signgu_cd, observed_at, record_kind, inform_code)` | (RAW 미보관)               | `AIR_QUALITY_STATIONS` (시드) → `AIR_QUALITY_CACHE`                                       | **시군구 16개** (`LDONG_CODES` 3자리 `signgu_cd`와 동일). 실시간=구별 대표 측정소, 예보=시·도 단위 응답을 16구에 fan-out |
+| 9   | 운영자 수기 가격 입력                                                                                              | `(shop_id, item_name)`                               | (RAW 미보관)               | `GOOD_PRICE_PRICE_OBSERVATIONS(approved)` → `GOOD_PRICE_SHOP_PRICES`                    | 초기 MVP 핵심, 크롤링 없이 운영                                                                       |
+| 10  | 사용자 가격 제보                                                                                                 | `observation_id`                                     | (RAW 미보관)               | `GOOD_PRICE_PRICE_OBSERVATIONS(pending→approved/rejected)` → `GOOD_PRICE_SHOP_PRICES`   | 증빙 기반 검수 후 반영                                                                              |
 
 
 ### LLM/임베딩 파생 산출물
@@ -107,8 +107,8 @@ GPS_RAW_SNAPSHOTS       -- shop_id PK
 #### USERS
 
 - **인증**: 카카오/네이버/구글 OAuth (`(provider, external_id)` 복합 UK)
-- **익명 사용자 미운영** (소셜 로그인 진입장벽 낮음)
-- **role**: 'user' / 'admin'
+- **익명 사용자  운영** (소셜 로그인 진입장벽 낮음)
+- **role**: 'user' / 'admin' / 익명 ( LLM 호출량 -> IP로 3회로 제한)
 - **soft delete**: `deleted_at` 30일 유예 후 hard delete
 - **last_active_at**: 5분 throttle 갱신 (매 요청마다 UPDATE 회피)
 - **탈퇴 처리**:
@@ -511,9 +511,9 @@ GPS_RAW_SNAPSHOTS       -- shop_id PK
 
 #### 가격 운영 플로우 (초기 MVP)
 
-1. 운영자가 가격 확인 후 `GOOD_PRICE_PRICE_OBSERVATIONS(source_type='admin_manual', report_status='approved')` INSERT  
-2. 트랜잭션 내 `GOOD_PRICE_SHOP_PRICES` UPSERT + `current_price_observation_id` 연결  
-3. 사용자 제보는 `pending`으로 적재 후 관리자 검수  
+1. 운영자가 가격 확인 후 `GOOD_PRICE_PRICE_OBSERVATIONS(source_type='admin_manual', report_status='approved')` INSERT
+2. 트랜잭션 내 `GOOD_PRICE_SHOP_PRICES` UPSERT + `current_price_observation_id` 연결
+3. 사용자 제보는 `pending`으로 적재 후 관리자 검수
 4. 승인 건만 `GOOD_PRICE_SHOP_PRICES` 반영 (반려 건은 이력만 유지)
 
 #### DDD/MSA 확장 대비 참조 정책 (1단계)
@@ -596,19 +596,23 @@ GPS_RAW_SNAPSHOTS       -- shop_id PK
 
 **부산시 전체 vs 16구별 — 차이와 선택**
 
-| 구분 | API 예시 (에어코리아) | 저장 단위 | 놀러온나 적용 |
-| --- | --- | --- | --- |
-| **부산시 전체** | `getCtprvnRltmMesureDnsty` (시도별 실시간) | 부산 1행 | 스팟·코스는 `l_dong_signgu_cd`로 **구 단위**인데 값이 1개뿐이라 해운대·기장 등 구 간 차이 반영 불가 |
-| **16구별** | `getMsrstnAcctoRltmMesureDnsty` (측정소별 실시간) + 구별 대표 측정소 매핑 | `signgu_cd` 16행 | `WEATHER_CACHE`·`SPOT_CONGESTION_FORECAST`·`SPOTS_CORE.l_dong_signgu_cd`와 **동일 키**로 조회·코스 생성 가능 |
+
+| 구분         | API 예시 (에어코리아)                                            | 저장 단위           | 놀러온나 적용                                                                                         |
+| ---------- | --------------------------------------------------------- | --------------- | ----------------------------------------------------------------------------------------------- |
+| **부산시 전체** | `getCtprvnRltmMesureDnsty` (시도별 실시간)                      | 부산 1행           | 스팟·코스는 `l_dong_signgu_cd`로 **구 단위**인데 값이 1개뿐이라 해운대·기장 등 구 간 차이 반영 불가                            |
+| **16구별**   | `getMsrstnAcctoRltmMesureDnsty` (측정소별 실시간) + 구별 대표 측정소 매핑 | `signgu_cd` 16행 | `WEATHER_CACHE`·`SPOT_CONGESTION_FORECAST`·`SPOTS_CORE.l_dong_signgu_cd`와 **동일 키**로 조회·코스 생성 가능 |
+
 
 **확정**: 미세먼지도 날씨·혼잡도와 같이 **부산 16개 시군구(`LDONG_CODES.signgu_cd`, 3자리)** 단위. 부산시 통합 1값 API는 마스터/캐시 SoT로 쓰지 않는다.
 
 **에어코리아 엔드포인트 매핑 (구현 시)**
 
-| 용도 | operation.md 기능명 | 엔드포인트 | `record_kind` | 비고 |
-| --- | --- | --- | --- | --- |
-| 실시간 | 측정소별 실시간 측정정보 조회 | `getMsrstnAcctoRltmMesureDnsty` | `realtime` | `AIR_QUALITY_STATIONS`에 등록된 구별 대표 `stationName` 1곳당 1행 적재 |
-| 예보 | 대기질 예보통보 조회 | `getMinuDustFrcstDspth` | `forecast` | `InformCode`=`PM10`/`PM25`/`O3`. 응답 `informGrade`는 **시·도 단위**(`부산: 나쁨` 등) → 파싱 후 **16개 `signgu_cd`에 동일 등급 fan-out** (원문은 시·도 단위임을 UI/로그에 명시 가능) |
+
+| 용도  | operation.md 기능명 | 엔드포인트                           | `record_kind` | 비고                                                                                                                                              |
+| --- | ---------------- | ------------------------------- | ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| 실시간 | 측정소별 실시간 측정정보 조회 | `getMsrstnAcctoRltmMesureDnsty` | `realtime`    | `AIR_QUALITY_STATIONS`에 등록된 구별 대표 `stationName` 1곳당 1행 적재                                                                                       |
+| 예보  | 대기질 예보통보 조회      | `getMinuDustFrcstDspth`         | `forecast`    | `InformCode`=`PM10`/`PM25`/`O3`. 응답 `informGrade`는 **시·도 단위**(`부산: 나쁨` 등) → 파싱 후 **16개 `signgu_cd`에 동일 등급 fan-out** (원문은 시·도 단위임을 UI/로그에 명시 가능) |
+
 
 서비스 베이스 URL: `http://apis.data.go.kr/B552584/ArpltnInforInqireSvc`  
 공공데이터포털 활용신청·개발계정 일일 트래픽(500건)은 [데이터 상세](https://www.data.go.kr/tcs/dss/selectApiDataDetailView.do?publicDataPk=15073861) 참고. sync 주기는 트래픽에 맞춰 별도 cron 정의(기상 §3 WEATHER_CACHE 발표 주기와 무관하게 **시간당 1회 이하** 권장).
@@ -956,51 +960,51 @@ ORDER BY pg_relation_size(indexrelid) DESC;
 > 파이썬 파이프라인과 Spring 백엔드가 같은 DB를 쓰므로 권한·책임 분리가 필수.
 
 
-| 테이블                               | 파이썬 (R/W)            | Spring (R/W) | 비고                     |
-| --------------------------------- | -------------------- | ------------ | ---------------------- |
-| SPOTS_CORE                        | RW                   | R            | 마스터, 파이썬 SoT           |
-| SPOT_DETAILS                      | RW                   | R            |                        |
-| SPOT_EMBEDDINGS                   | RW                   | R            |                        |
-| SPOTS_RAW_SNAPSHOTS               | RW                   | -            | 파이썬 단독                 |
-| SPOT_IMAGES                       | RW                   | R            |                        |
-| SPOT_TAGS                         | RW                   | R            |                        |
-| SPOT_CONGESTION_FORECAST          | RW                   | R            |                        |
-| EVENTS_CORE                       | RW                   | R            |                        |
-| EVENT_DETAILS                     | RW                   | R            |                        |
-| EVENT_EMBEDDINGS                  | RW                   | R            |                        |
-| EVENTS_RAW_SNAPSHOTS              | RW                   | -            |                        |
-| EVENT_IMAGES                      | RW                   | R            |                        |
-| TRAVEL_COURSES                    | RW                   | R            |                        |
-| TRAVEL_COURSE_EMBEDDINGS          | RW                   | R            |                        |
-| COURSES_RAW_SNAPSHOTS             | RW                   | -            |                        |
-| COURSE_ITEMS                      | RW                   | R            |                        |
-| GOOD_PRICE_SHOPS                  | RW                   | R            |                        |
-| GOOD_PRICE_SHOP_PRICES            | R                    | RW           | 확정 가격 SoT는 Spring      |
+| 테이블                               | 파이썬 (R/W)            | Spring (R/W) | 비고                              |
+| --------------------------------- | -------------------- | ------------ | ------------------------------- |
+| SPOTS_CORE                        | RW                   | R            | 마스터, 파이썬 SoT                    |
+| SPOT_DETAILS                      | RW                   | R            |                                 |
+| SPOT_EMBEDDINGS                   | RW                   | R            |                                 |
+| SPOTS_RAW_SNAPSHOTS               | RW                   | -            | 파이썬 단독                          |
+| SPOT_IMAGES                       | RW                   | R            |                                 |
+| SPOT_TAGS                         | RW                   | R            |                                 |
+| SPOT_CONGESTION_FORECAST          | RW                   | R            |                                 |
+| EVENTS_CORE                       | RW                   | R            |                                 |
+| EVENT_DETAILS                     | RW                   | R            |                                 |
+| EVENT_EMBEDDINGS                  | RW                   | R            |                                 |
+| EVENTS_RAW_SNAPSHOTS              | RW                   | -            |                                 |
+| EVENT_IMAGES                      | RW                   | R            |                                 |
+| TRAVEL_COURSES                    | RW                   | R            |                                 |
+| TRAVEL_COURSE_EMBEDDINGS          | RW                   | R            |                                 |
+| COURSES_RAW_SNAPSHOTS             | RW                   | -            |                                 |
+| COURSE_ITEMS                      | RW                   | R            |                                 |
+| GOOD_PRICE_SHOPS                  | RW                   | R            |                                 |
+| GOOD_PRICE_SHOP_PRICES            | R                    | RW           | 확정 가격 SoT는 Spring               |
 | GOOD_PRICE_PRICE_OBSERVATIONS     | R                    | RW           | 1단계: Spring 입력/검수 SoT, 파이썬은 조회만 |
-| GOOD_PRICE_MATCH_QUEUE            | RW                   | RW           | 양쪽: 파이썬 큐잉, Spring 검수  |
-| GPS_RAW_SNAPSHOTS                 | RW                   | -            |                        |
-| TAGS                              | RW                   | R            | 파이썬 자동 추가, Spring 검색만  |
-| WEATHER_CACHE                     | RW                   | R            | 파이썬 sync, Spring 조회    |
-| WEATHER_GRIDS                     | R (시드)               | R            | 마스터                    |
-| AIR_QUALITY_CACHE                 | RW                   | R            | 파이썬 sync, Spring 조회 (DDL 예정) |
-| AIR_QUALITY_STATIONS              | R (시드)               | R            | 구별 측정소 마스터 (DDL 예정)   |
-| LDONG_CODES                       | R (시드)               | R            | 마스터                    |
-| LCLS_SYSTM_CODES                  | R (시드)               | R            | 마스터                    |
-| GOOD_PRICE_LOCALE_CODES           | R (시드)               | R            | 마스터                    |
-| **USERS**                         | -                    | RW           | Spring 단독              |
-| **USER_EMBEDDINGS**               | RW (배치)              | R            | 양쪽: 파이썬 재계산, Spring 조회 |
-| **BOOKMARKS**                     | -                    | RW           | Spring 단독              |
-| **BOOKMARK_COLLECTIONS**          | -                    | RW           | Spring 단독              |
-| **GENERATED_COURSES**             | -                    | RW           | Spring 단독              |
-| **GENERATED_COURSE_ITEMS**        | -                    | RW           | Spring 단독              |
-| **COURSE_DECISIONS**              | -                    | RW           | Spring 단독              |
-| **USER_REVIEWS**                  | -                    | RW           | Spring 단독              |
-| **VISIT_HISTORY**                 | -                    | RW           | Spring 단독              |
-| **NOTIFICATIONS**                 | -                    | RW           | Spring 단독              |
-| **HANKKUT**                       | RW (auto_event cron) | RW (관리자)     | 양쪽                     |
-| **HANKKUT_SPOTS / TAGS / EVENTS** | RW                   | RW           | 양쪽                     |
-| BUSINESS_HOURS_REVIEW_QUEUE       | W (LLM 큐잉)           | RW (관리자 검수)  | 양쪽                     |
-| SYNC_LOGS                         | RW (자기 job)          | RW (자기 job)  | 양쪽                     |
+| GOOD_PRICE_MATCH_QUEUE            | RW                   | RW           | 양쪽: 파이썬 큐잉, Spring 검수           |
+| GPS_RAW_SNAPSHOTS                 | RW                   | -            |                                 |
+| TAGS                              | RW                   | R            | 파이썬 자동 추가, Spring 검색만           |
+| WEATHER_CACHE                     | RW                   | R            | 파이썬 sync, Spring 조회             |
+| WEATHER_GRIDS                     | R (시드)               | R            | 마스터                             |
+| AIR_QUALITY_CACHE                 | RW                   | R            | 파이썬 sync, Spring 조회 (DDL 예정)    |
+| AIR_QUALITY_STATIONS              | R (시드)               | R            | 구별 측정소 마스터 (DDL 예정)             |
+| LDONG_CODES                       | R (시드)               | R            | 마스터                             |
+| LCLS_SYSTM_CODES                  | R (시드)               | R            | 마스터                             |
+| GOOD_PRICE_LOCALE_CODES           | R (시드)               | R            | 마스터                             |
+| **USERS**                         | -                    | RW           | Spring 단독                       |
+| **USER_EMBEDDINGS**               | RW (배치)              | R            | 양쪽: 파이썬 재계산, Spring 조회          |
+| **BOOKMARKS**                     | -                    | RW           | Spring 단독                       |
+| **BOOKMARK_COLLECTIONS**          | -                    | RW           | Spring 단독                       |
+| **GENERATED_COURSES**             | -                    | RW           | Spring 단독                       |
+| **GENERATED_COURSE_ITEMS**        | -                    | RW           | Spring 단독                       |
+| **COURSE_DECISIONS**              | -                    | RW           | Spring 단독                       |
+| **USER_REVIEWS**                  | -                    | RW           | Spring 단독                       |
+| **VISIT_HISTORY**                 | -                    | RW           | Spring 단독                       |
+| **NOTIFICATIONS**                 | -                    | RW           | Spring 단독                       |
+| **HANKKUT**                       | RW (auto_event cron) | RW (관리자)     | 양쪽                              |
+| **HANKKUT_SPOTS / TAGS / EVENTS** | RW                   | RW           | 양쪽                              |
+| BUSINESS_HOURS_REVIEW_QUEUE       | W (LLM 큐잉)           | RW (관리자 검수)  | 양쪽                              |
+| SYNC_LOGS                         | RW (자기 job)          | RW (자기 job)  | 양쪽                              |
 
 
 ### DB 권한 분리 SQL
@@ -1393,15 +1397,17 @@ WHERE object_type = 'SEQUENCE';
 
 ### 13.6 GOOD_PRICE_PRICE_OBSERVATIONS
 
-| 작업                                                | 파이썬                     | Spring          |
-| ------------------------------------------------- | ----------------------- | --------------- |
-| INSERT (`source_type='admin_manual'`)             | ❌ 금지                    | ✅ 운영자 수기 입력     |
-| INSERT (`source_type='user_report'`)              | ❌ 금지                    | ✅ 사용자 제보 접수     |
-| INSERT (`source_type='crawler'`)                  | ⚠️ 2단계부터 허용 (1단계 권한 미부여) | ❌ 금지            |
-| UPDATE (`pending → approved/rejected`)            | ❌ 절대 금지                 | ✅ 관리자 검수        |
-| approved 후 GOOD_PRICE_SHOP_PRICES 반영             | ❌ 절대 금지                 | ✅ 단일 트랜잭션으로 처리  |
-| UPDATE (이미 처리된 row 재수정)                           | ❌ 절대 금지                 | ❌ 절대 금지 (감사 목적) |
-| DELETE                                             | ❌ 금지                    | ❌ 금지 (이력 보존)    |
+
+| 작업                                     | 파이썬                      | Spring          |
+| -------------------------------------- | ------------------------ | --------------- |
+| INSERT (`source_type='admin_manual'`)  | ❌ 금지                     | ✅ 운영자 수기 입력     |
+| INSERT (`source_type='user_report'`)   | ❌ 금지                     | ✅ 사용자 제보 접수     |
+| INSERT (`source_type='crawler'`)       | ⚠️ 2단계부터 허용 (1단계 권한 미부여) | ❌ 금지            |
+| UPDATE (`pending → approved/rejected`) | ❌ 절대 금지                  | ✅ 관리자 검수        |
+| approved 후 GOOD_PRICE_SHOP_PRICES 반영   | ❌ 절대 금지                  | ✅ 단일 트랜잭션으로 처리  |
+| UPDATE (이미 처리된 row 재수정)                | ❌ 절대 금지                  | ❌ 절대 금지 (감사 목적) |
+| DELETE                                 | ❌ 금지                     | ❌ 금지 (이력 보존)    |
+
 
 **규칙 요약**:
 
