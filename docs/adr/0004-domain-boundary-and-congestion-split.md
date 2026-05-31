@@ -1,8 +1,12 @@
 # ADR 0004 — 도메인 분리 기준과 SPOTS 혼잡도(congestion) 분리 원칙
 
-- 상태: Proposed
+- 상태: Deferred
 - 일자: 2026-05-07
 - 적용 범위: `src/nolleo_pipeline/domains/*`, SPOTS 혼잡도 파이프라인/운영 정책
+
+> 혼잡도 도메인은 코드 패키지 초안은 있으나, 2026-05-31 Alembic 리셋의
+> `0001`-`0008` 범위에서는 DB 테이블을 만들지 않는다. 본 ADR은 후속 혼잡도
+> 브랜치에서 재검토한다.
 
 ## Context
 

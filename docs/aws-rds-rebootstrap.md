@@ -1,21 +1,23 @@
-# AWS RDS 재생성 후 초기화 가이드
+# AWS RDS 재부트스트랩 가이드
 
-AWS RDS 인스턴스를 삭제/재생성했을 때, 놀러온나 파이프라인을 처음부터 다시 연결하고 적재를 재개하는 절차입니다.
+AWS dev DB를 비우거나 새 RDS 인스턴스를 만든 뒤, 현재 Alembic 리셋 체인
+(`0001` → `0008`)을 기준으로 다시 초기화하는 절차입니다.
 
-## 1) 환경변수 갱신
+## 1. 환경변수 갱신
 
-`/.env.aws`(또는 `/.env`)에 새 인스턴스 정보를 반영합니다.
+`.env.aws` 또는 `.env`에 새 인스턴스 정보를 반영합니다.
 
-- `DB_HOST`
-- `DB_PORT`
-- `DB_NAME`
-- `DB_USER`
-- `DB_PASSWORD`
-- `TOUR_API_KEY`
-- `OPENAI_API_KEY`
-- `DAILY_API_CALL_LIMIT` (권장: `900`, 일 1000 제한 버퍼)
+```bash
+DB_HOST=
+DB_PORT=5432
+DB_NAME=
+DB_USER=
+DB_PASSWORD=
+TOUR_API_KEY=
+OPENAI_API_KEY=
+```
 
-로컬 셸에 로드:
+로컬 셸에 로드합니다.
 
 ```bash
 set -a
@@ -23,7 +25,7 @@ source .env.aws
 set +a
 ```
 
-## 2) DB 접속 확인
+## 2. DB 접속 확인
 
 ```bash
 psql "host=$DB_HOST port=$DB_PORT dbname=$DB_NAME user=$DB_USER sslmode=require"
@@ -31,77 +33,64 @@ psql "host=$DB_HOST port=$DB_PORT dbname=$DB_NAME user=$DB_USER sslmode=require"
 
 접속이 안 되면 보안그룹 인바운드(5432), 사용자/비밀번호, DB 이름을 먼저 점검합니다.
 
-## 3) 확장(extension) 설치
+## 3. 기존 테이블 정리
 
-`psql` 접속 후 실행:
-
-```sql
-CREATE EXTENSION IF NOT EXISTS postgis;
-CREATE EXTENSION IF NOT EXISTS vector;
-CREATE EXTENSION IF NOT EXISTS pg_trgm;
-\dx
-```
-
-`postgis`, `vector`, `pg_trgm`가 보이면 정상입니다.
-
-## 4) Alembic 마이그레이션 적용
-
-프로젝트 루트에서:
+dev DB를 완전히 새로 올릴 때만 실행합니다. PostGIS/pgvector 시스템 테이블과 extension은
+삭제 대상이 아닙니다.
 
 ```bash
-./.venv/bin/alembic heads
+psql "host=$DB_HOST port=$DB_PORT dbname=$DB_NAME user=$DB_USER sslmode=require" \
+  -f scripts/db/01_drop_all_tables.sql
 ```
 
-현재 리포 구조상 head가 2개일 수 있습니다. 우선 SPOTS 체인(+sync_logs)만 올립니다.
+## 4. Alembic 마이그레이션 적용
+
+현재 리포의 단일 head는 `0008`입니다.
 
 ```bash
-./.venv/bin/alembic upgrade 0005_create_sync_logs
+uv run alembic heads
+uv run alembic upgrade head
 ```
 
-`0099_spots_external_fks`는 외부(master) 테이블 준비 후 적용합니다.
+`0001`에서 `postgis`, `pg_trgm`, `vector` extension을 `CREATE EXTENSION IF NOT EXISTS`로
+보장합니다. RDS 권한 문제로 extension 생성이 실패하면 DB owner 권한을 먼저 확인합니다.
 
-## 5) 마이그레이션 결과 확인
-
-`psql`에서:
+## 5. 결과 확인
 
 ```sql
 SELECT * FROM alembic_version;
-\dt
+\dt public.*
 ```
 
-최소 아래 테이블이 보여야 합니다.
+현재 MVP 기준 최소 테이블:
 
-- `spots_core`
-- `spot_details`
-- `spot_embeddings`
-- `spots_raw_snapshots`
-- `spot_images`
-- `spot_tags`
-- `spot_congestion_forecast`
+- `users`
+- `spots`, `spot_details`, `spots_raw_snapshots`, `spot_images`
+- `travel_courses`, `travel_course_raw_snapshots`, `course_items`
+- `generated_courses`, `generated_course_items`, `course_decisions`
 - `sync_logs`
+- `food_places`, `food_place_sources`, `food_place_menus`
+- `food_price_observations`, `food_place_spot_matches`, `spot_price_summary`
+- `ldong_codes`
 
-## 6) 스모크 테스트 실행
+## 6. 스모크 테스트
 
 초기에는 소량으로 시작합니다.
 
-- `scripts/run_spots_sync.py`를 `max_pages=1`, `num_of_rows=5`로 실행
-- 정상 확인 후 `max_pages=None`, `num_of_rows=100`으로 전환
-
-실행:
-
 ```bash
-python -u scripts/run_spots_sync.py
+uv run python -u scripts/spot/run_spots_sync.py
 ```
 
-## 7) 적재 로그 검증
+필요하면 스크립트에서 `max_pages=1`, `num_of_rows=5`로 줄여 먼저 확인합니다.
+
+## 7. 적재 로그 검증
 
 ```sql
-SELECT id, status, api_calls_used, records_fetched, records_upserted, records_failed
+SELECT id, job_name, status, api_calls_used, records_fetched, records_upserted,
+       records_failed, metadata
 FROM sync_logs
-WHERE job_name='tourapi_spots_sync'
 ORDER BY id DESC
-LIMIT 3;
+LIMIT 10;
 ```
 
-`status='success'`와 처리 건수가 확인되면 재연결/재부트스트랩이 완료된 상태입니다.
-
+`status='success'`와 처리 건수가 확인되면 재부트스트랩이 완료된 상태입니다.

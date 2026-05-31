@@ -1,8 +1,11 @@
 # ADR 0005 — SPOT_CONGESTION_FORECAST Repository 정책 (UPSERT/매칭/캐시 갱신)
 
-- 상태: Proposed
+- 상태: Deferred
 - 일자: 2026-05-07
 - 적용 범위: `src/nolleo_pipeline/domains/congestion/repository.py`, `SPOT_CONGESTION_FORECAST`, `SPOTS_CORE` 혼잡도 캐시 컬럼
+
+> 2026-05-31 Alembic 리셋에서는 `SPOT_CONGESTION_FORECAST`와 `spots` 혼잡도
+> 캐시 컬럼을 제외했다. 본 정책은 후속 혼잡도 도메인 브랜치에서 재검토한다.
 
 ## Context
 
