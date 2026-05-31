@@ -4,7 +4,7 @@
 - ParsedTravelCourse를 실제 DB 테이블에 분배 저장하는 계층.
 - operation.md의 저장 정책을 트랜잭션으로 강제한다.
   - TRAVEL_COURSES: UPSERT
-  - COURSES_RAW_SNAPSHOTS: UPSERT
+  - TRAVEL_COURSE_RAW_SNAPSHOTS: UPSERT
   - COURSE_ITEMS: REPLACE(DELETE + INSERT)
 
 [핵심 규약]
@@ -49,13 +49,13 @@ class TravelCoursesRepository:
             INSERT INTO travel_courses (
                 content_id, title, overview, overview_hash, theme,
                 taketime, taketime_minutes, distance, distance_km,
-                schedule, infocenter_tourcourse, first_image,
-                l_dong_regn_cd, source_modified_time, created_time,
+                schedule, infocenter_tourcourse, first_image, first_image_cpyrht_div_cd,
+                l_dong_regn_cd, source_modified_time, source_created_at,
                 synced_at, is_active
             ) VALUES (
                 %s, %s, %s, %s, %s,
                 %s, %s, %s, %s,
-                %s, %s, %s,
+                %s, %s, %s, %s,
                 %s, %s, %s,
                 %s, %s
             )
@@ -71,9 +71,10 @@ class TravelCoursesRepository:
                 schedule = EXCLUDED.schedule,
                 infocenter_tourcourse = EXCLUDED.infocenter_tourcourse,
                 first_image = EXCLUDED.first_image,
+                first_image_cpyrht_div_cd = EXCLUDED.first_image_cpyrht_div_cd,
                 l_dong_regn_cd = EXCLUDED.l_dong_regn_cd,
                 source_modified_time = EXCLUDED.source_modified_time,
-                created_time = EXCLUDED.created_time,
+                source_created_at = EXCLUDED.source_created_at,
                 synced_at = EXCLUDED.synced_at,
                 is_active = TRUE,
                 inactive_since = NULL
@@ -91,9 +92,10 @@ class TravelCoursesRepository:
                 course.schedule,
                 course.infocenter_tourcourse,
                 course.first_image,
+                course.first_image_cpyrht_div_cd,
                 course.l_dong_regn_cd,
                 course.source_modified_time,
-                course.created_time,
+                course.source_created_at,
                 course.synced_at,
                 course.is_active,
             ),
@@ -106,7 +108,7 @@ class TravelCoursesRepository:
     ) -> None:
         await conn.execute(
             """
-            INSERT INTO courses_raw_snapshots (content_id, raw_json, fetched_at)
+            INSERT INTO travel_course_raw_snapshots (content_id, raw_json, fetched_at)
             VALUES (%s, %s::jsonb, %s)
             ON CONFLICT (content_id) DO UPDATE SET
                 raw_json = EXCLUDED.raw_json,
@@ -130,7 +132,7 @@ class TravelCoursesRepository:
         if not items:
             return
 
-        # FK 안전성: spots_core에 실제로 존재하는 content_id만 matched_spot_id로 저장.
+        # FK 안전성: spots에 실제로 존재하는 content_id만 matched_spot_id로 저장.
         # 존재하지 않으면 NULL로 내려서 course_items_matched_spot_id_fkey 위반을 방지한다.
         valid_matched_ids = await self._load_existing_spot_ids(conn, items)
 
@@ -173,7 +175,7 @@ class TravelCoursesRepository:
         row = await conn.execute(
             """
             SELECT content_id
-              FROM spots_core
+              FROM spots
              WHERE content_id = ANY(%s)
             """,
             (candidate_ids,),
