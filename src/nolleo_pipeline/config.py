@@ -30,6 +30,26 @@ class Settings(BaseSettings):
     # ── 외부 API ──────────────────────────────────────
     tour_api_key: str = Field(alias="TOUR_API_KEY")
     openai_api_key: str = Field(alias="OPENAI_API_KEY")
+    busan_goodprice_api_key: str = Field(default="", alias="BUSAN_GOODPRICE_API_KEY")
+    busan_goodprice_store_api_url: str = Field(
+        default="http://apis.data.go.kr/6260000/GoodPriceStoreService/getGoodPriceStore",
+        alias="BUSAN_GOODPRICE_API_URL",
+    )
+    busan_goodprice_menu_api_url: str = Field(
+        default="http://apis.data.go.kr/6260000/BsGoodpriceService/getBsGoodprice",
+        alias="BUSAN_GOODPRICE_MENU_API_URL",
+    )
+    busan_food_api_key: str = Field(default="", alias="BUSAN_FOOD_API_KEY")
+    busan_food_api_url: str = Field(
+        default="http://apis.data.go.kr/6260000/FoodService/getFoodKr",
+        alias="BUSAN_FOOD_API_URL",
+    )
+    busan_odcloud_api_key: str = Field(default="", alias="BUSAN_ODCLOUD_API_KEY")
+
+    @property
+    def busan_goodprice_api_url(self) -> str:
+        """이전 코드 호환용: 착한가격업소 목록 API URL."""
+        return self.busan_goodprice_store_api_url
 
     # ── DB (분리 필드, .env와 일치) ──────────────────
     db_host: str = Field(alias="DB_HOST")
