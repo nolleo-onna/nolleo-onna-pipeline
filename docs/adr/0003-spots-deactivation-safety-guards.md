@@ -1,12 +1,12 @@
 # ADR 0003 — SPOTS 비활성 처리 안전 가드: 4중 가드 + sync_started_at 컷오프
 
-- 상태: Proposed
+- 상태: Accepted
 - 일자: 2026-05-07
-- 적용 범위: SPOTS sync 잡의 `SPOTS_CORE.is_active` 비활성 전이 (TourAPI ContentTypeId 12/14/28/39)
+- 적용 범위: SPOTS sync 잡의 `spots.is_active` 비활성 전이 (TourAPI ContentTypeId 12/14/28/39)
 
 ## Context
 
-`docs/operation.md` §3 SPOTS_CORE에 "TourAPI에서 사라지면 `is_active=false` + `inactive_since=NOW()`" 정책은 있으나 **언제 비활성을 실행할지에 대한 안전 가드가 정의되어 있지 않다**. 그대로 구현하면 다음 위험이 있다.
+`docs/operation.md`의 SPOTS 정책은 "TourAPI에서 사라지면 `is_active=false` + `inactive_since=NOW()`"를 채택한다. 이때 언제 비활성을 실행할지 안전 가드가 없으면 다음 위험이 있다.
 
 - 부분 적재(예산 컷·페이지네이션 중단·일부 contentType 누락)가 비활성을 유발해 sync된 row만 살아남고 나머지가 통째로 비활성된다.
 - TourAPI가 빈 응답을 정상 반환하는 부분 장애 케이스(에러 없음 + 페이지 다 돔)에서 활성 row 절반이 사라지는 false positive 가능.
@@ -61,7 +61,7 @@
 ## 관련 문서
 
 - `docs/operation.md` §1#1 TourAPI 관광지 적재 흐름
-- `docs/operation.md` §3 SPOTS_CORE 비활성 처리
+- `docs/operation.md` SPOTS 비활성 처리
 - `docs/operation.md` §3 SYNC_LOGS metadata 표준 필드 (본 ADR로 추가되는 필드 정의)
 - `docs/operation.md` §4 Q1·Q2·Q3 partial index (`WHERE is_active=true`)
 - `src/nolleo_pipeline/domains/spots/repository.py` `_upsert_core` ON CONFLICT

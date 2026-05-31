@@ -2,8 +2,8 @@
 """TourAPI KorService2 `lclsSystmCode2` → `lcls_systm_codes` 백필.
 
 레포츠(28) 등 신규 contentType이 쓰는 (lclsSystm1,2,3) 조합이
-`0009` 시드 시점의 spots_core에 없으면 FK `fk_spots_core_lcls`에 막힌다.
-이 스크립트로 분류 마스터를 채운 뒤 spots sync를 재실행한다.
+예전 FK 기반 스키마에서는 누락된 분류코드가 spots 적재를 막을 수 있었다.
+이 스크립트는 분류 마스터를 별도로 운영할 때 API 기준으로 코드를 보강한다.
 
 문서: docs/troubleshooting/lcls-systm-master-backfill.md
 """
@@ -132,7 +132,12 @@ async def main() -> None:
         default="LS",
         help="대분류 코드 필터 (28 레포츠는 보통 LS). 빈 문자열이면 파라미터 생략.",
     )
-    parser.add_argument("--num-of-rows", type=int, default=500, help="페이지당 행 수 (최대 1000 권장)")
+    parser.add_argument(
+        "--num-of-rows",
+        type=int,
+        default=500,
+        help="페이지당 행 수 (최대 1000 권장)",
+    )
     parser.add_argument("--max-pages", type=int, default=50, help="안전 상한 페이지 수")
     parser.add_argument(
         "--dry-run",

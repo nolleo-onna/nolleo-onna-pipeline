@@ -1,8 +1,12 @@
 # ADR 0002 — 착한가격 가격 데이터 모델: 확정가 + 관측이력 2계층
 
-- 상태: Accepted
+- 상태: Superseded by ADR 0006
 - 일자: 2026-05-04
 - 적용 범위: `GOOD_PRICE_SHOPS` 가격 운영, 수기 입력/유저 제보/향후 크롤러 적재, 코스 비용 계산(`GOOD_PRICE_SHOP_PRICES` 참조)
+
+> 2026-05-31 스키마 리셋 이후 현재 DB는 `GOOD_PRICE_*` 테이블 대신
+> `food_places`, `food_place_menus`, `food_price_observations` 중심의 공통
+> 음식/가격 모델을 사용한다. 현재 기준 결정은 ADR 0006을 따른다.
 
 ## Context
 

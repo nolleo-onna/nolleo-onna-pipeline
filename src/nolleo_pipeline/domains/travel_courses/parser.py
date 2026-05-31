@@ -150,9 +150,10 @@ def parse_course(
         schedule=_str(common.get("schedule")),
         infocenter_tourcourse=_str(common.get("infocentertourcourse")),
         first_image=_str(common.get("firstimage")),
+        first_image_cpyrht_div_cd=_str(common.get("cpyrhtDivCd")),
         l_dong_regn_cd=_str(common.get("lDongRegnCd")),
         source_modified_time=parse_tourapi_timestamp(_str(common.get("modifiedtime"))),
-        created_time=parse_tourapi_timestamp(_str(common.get("createdtime"))),
+        source_created_at=parse_tourapi_timestamp(_str(common.get("createdtime"))),
         synced_at=synced_at,
         is_active=True,
     )

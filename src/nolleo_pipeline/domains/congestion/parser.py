@@ -51,7 +51,7 @@ def _parse_one(
     api_area_cd = str(raw["areaCd"])
     api_signgu_cd = str(raw["signguCd"])
     # TourAPI는 signguCd를 5자리 결합 코드로 줄 수 있다(예: 26110).
-    # 내부 표준(LDONG_CODES/SPOTS_CORE)과 정합을 맞추기 위해 3자리 signgu_cd로 정규화.
+    # 내부 표준(LDONG_CODES/SPOTS)과 정합을 맞추기 위해 3자리 signgu_cd로 정규화.
     signgu_cd_normalized = (
         api_signgu_cd[len(api_area_cd):]
         if api_signgu_cd.startswith(api_area_cd)

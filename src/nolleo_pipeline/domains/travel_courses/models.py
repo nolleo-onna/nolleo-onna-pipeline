@@ -29,9 +29,10 @@ class TravelCourseRecord(BaseModel):
     schedule: str | None = None          # 당일, 1박2일 등의 일정 정보
     infocenter_tourcourse: str | None = None # 문의처/안내소 정보
     first_image: str | None = None       # 코스 대표 이미지 URL
+    first_image_cpyrht_div_cd: str | None = None  # 대표 이미지 저작권 구분 코드
     l_dong_regn_cd: str | None = None    # 법정동 지역 코드 (행정구역 분류용)
     source_modified_time: datetime | None = None # 원본 데이터(공공데이터 등)가 수정된 시간
-    created_time: datetime | None = None  # 이 레코드가 처음 생성된 시간
+    source_created_at: datetime | None = None  # 원천 API 생성 시간
     synced_at: datetime                  # 데이터가 최종 동기화(업데이트)된 시간 (필수값)
     is_active: bool = True               # 이 코스가 현재 유효한지 여부 (기본값 True)
 

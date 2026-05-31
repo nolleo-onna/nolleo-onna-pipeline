@@ -18,7 +18,7 @@ from pydantic import BaseModel, ConfigDict
 TagSource = Literal["llm", "rule", "manual"]
 
 class SpotCoreRecord(BaseModel):
-    """SPOTS_CORE UPSERT용 레코드.
+    """SPOTS UPSERT용 레코드.
 
     필수 필드(content_id, content_type_id, title, synced_at)만 NOT NULL,
     나머지는 None 허용 (TourAPI 응답에 누락된 경우 흔함).
@@ -43,6 +43,7 @@ class SpotCoreRecord(BaseModel):
 
     first_image: str | None = None
     first_image2: str | None = None
+    first_image_cpyrht_div_cd: str | None = None
 
     source_modified_time: datetime | None = None
     synced_at: datetime              # 호출자가 now_utc() 박아 넣음
@@ -59,6 +60,7 @@ class SpotDetailsRecord(BaseModel):
 
     content_id: str
     tel: str | None = None
+    tel_name: str | None = None
     homepage: str | None = None
     addr1: str | None = None
     addr2: str | None = None
@@ -69,7 +71,7 @@ class SpotDetailsRecord(BaseModel):
     intro: dict[str, Any] | None = None  # JSONB 그대로
 
     parking_available: bool | None = None
-    created_time: datetime | None = None
+    source_created_at: datetime | None = None
 
 class SpotImageRecord(BaseModel):
     """SPOT_IMAGES REPLACE용 레코드.
@@ -82,6 +84,7 @@ class SpotImageRecord(BaseModel):
     origin_img_url: str
     small_img_url: str | None = None
     img_name: str | None = None
+    cpyrht_div_cd: str | None = None
     serial_num: str
 
 class SpotRawSnapshot(BaseModel):

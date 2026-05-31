@@ -49,14 +49,14 @@ def _float(value: Any) -> float | None:
 
 
 def _bool_yn(value: Any) -> bool | None:
-    """'Y'/'N' 형태를 bool로. 그 외는 None."""
+    """TourAPI/부산 API의 예/아니오 계열 값을 bool로 정규화."""
     text = _str(value)
     if text is None:
         return None
     upper = text.upper()
-    if upper == "Y":
+    if upper in {"Y", "YES", "1", "TRUE", "가능", "있음", "유", "O"}:
         return True
-    if upper == "N":
+    if upper in {"N", "NO", "0", "FALSE", "불가능", "없음", "무", "X"}:
         return False
     return None
 
@@ -101,7 +101,7 @@ def build_raw_snapshot(
 # ─── 각 테이블별 파서 ─────────────────────────────────────────
 
 def parse_core(common: dict[str, Any], synced_at: datetime) -> SpotCoreRecord:
-    """detailCommon2 응답 → SPOTS_CORE 레코드."""
+    """detailCommon2 응답 → SPOTS 레코드."""
     return SpotCoreRecord(
         # 필수. 없으면 KeyError → 호출자 처리
         content_id=str(common["contentid"]),
@@ -116,6 +116,7 @@ def parse_core(common: dict[str, Any], synced_at: datetime) -> SpotCoreRecord:
         lcls_systm_3=_str(common.get("lclsSystm3")),
         first_image=_str(common.get("firstimage")),
         first_image2=_str(common.get("firstimage2")),
+        first_image_cpyrht_div_cd=_str(common.get("cpyrhtDivCd")),
         source_modified_time=parse_tourapi_timestamp(common.get("modifiedtime")),
         synced_at=synced_at,
         is_active=True,
@@ -151,6 +152,7 @@ def parse_detail(
     return SpotDetailsRecord(
         content_id=str(common["contentid"]),
         tel=_str(common.get("tel")),
+        tel_name=_str(common.get("telname")),
         homepage=_str(common.get("homepage")),
         addr1=_str(common.get("addr1")),
         addr2=_str(common.get("addr2")),
@@ -159,7 +161,7 @@ def parse_detail(
         overview_hash=compute_overview_hash(overview),           # 핵심
         intro=intro or None,                                      # JSONB 원본 통째 보관
         parking_available=_bool_yn(parking_raw),
-        created_time=parse_tourapi_timestamp(common.get("createdtime")),
+        source_created_at=parse_tourapi_timestamp(common.get("createdtime")),
     )
 
 
@@ -202,6 +204,7 @@ def parse_images(
                 origin_img_url=origin,
                 small_img_url=_str(raw.get("smallimageurl")),
                 img_name=_str(raw.get("imgname")),
+                cpyrht_div_cd=_str(raw.get("cpyrhtDivCd")),
                 serial_num=serial,
             )
         )
@@ -216,6 +219,7 @@ def parse_images(
                     origin_img_url=first,
                     small_img_url=_str(common.get("firstimage2")),
                     img_name=None,
+                    cpyrht_div_cd=_str(common.get("cpyrhtDivCd")),
                     serial_num="1",
                 )
             )
@@ -234,7 +238,7 @@ def parse_spot(
 
     Args:
         endpoints: {"detailCommon2": {...}, "detailIntro2": {...}, ...}
-        synced_at: SPOTS_CORE.synced_at에 들어갈 timezone-aware datetime
+        synced_at: SPOTS.synced_at에 들어갈 timezone-aware datetime
         fetched_at: RAW snapshot에 박을 timezone-aware datetime
 
     Raises:

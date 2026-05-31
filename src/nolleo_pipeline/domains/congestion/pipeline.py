@@ -3,7 +3,7 @@
 [이 파일이 왜 있냐]
 - 3개 잡:
     · tourapi_congestion_sync          : 부산 시군구 16개 × 30일치 적재
-    · today_concentration_cache_refresh: SPOTS_CORE 캐시 3컬럼 갱신 (4중 가드)
+    · today_concentration_cache_refresh: SPOTS 캐시 3컬럼 갱신 (4중 가드)
     · congestion_old_purge             : 7일 이전 base_ymd row cleanup
 - ADR 0003 4중 가드 패턴 재사용으로 부분 적재 직후 캐시 갱신 차단.
 
@@ -130,7 +130,7 @@ async def _sync_one_signgu(
 ) -> None:
     """단일 시군구 — 페이지 끝까지 호출 후 매칭 + batch upsert."""
     # TourAPI signguCd는 area_cd + signgu_cd 결합 5자리 형식(예: 26 + 110 = 26110).
-    # 내부 표준(LDONG_CODES/SPOTS_CORE)은 3자리 signgu_cd를 유지하고,
+    # 내부 표준(LDONG_CODES/SPOTS)은 3자리 signgu_cd를 유지하고,
     # API 호출 시점에서만 결합 코드를 사용한다.
     api_signgu_cd = f"{area_cd}{signgu_cd}"
     page = 1
@@ -199,7 +199,7 @@ async def _sync_one_signgu(
 # ─── 잡 2: today_concentration_cache_refresh ─────────────────────
 
 async def run_today_concentration_cache_refresh() -> None:
-    """SPOTS_CORE 혼잡도 캐시 3컬럼 갱신 (sync 직후 cron).
+    """SPOTS 혼잡도 캐시 3컬럼 갱신 (sync 직후 cron).
 
     ADR 0003 4중 가드 패턴 재사용 — 직전 `tourapi_congestion_sync`
     metadata 보고 부분 적재 회차면 skip.
