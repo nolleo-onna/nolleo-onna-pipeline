@@ -3,7 +3,7 @@
 
 흐름:
   1. tourapi_congestion_sync          — 부산 시군구 16개 × 30일치 적재
-  2. today_concentration_cache_refresh — SPOTS_CORE 캐시 3컬럼 갱신 (4중 가드)
+  2. today_concentration_cache_refresh — SPOTS 캐시 3컬럼 갱신 (4중 가드)
   3. congestion_old_purge             — 7일 이전 row cleanup
 
 실행 후 결과 확인:

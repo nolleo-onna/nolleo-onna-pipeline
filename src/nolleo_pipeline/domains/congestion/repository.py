@@ -2,13 +2,13 @@
 
 [이 파일이 왜 있냐]
 - CongestionForecastRecord → SPOT_CONGESTION_FORECAST 적재 (partial UK 2종 분기)
-- raw_tats_name + signgu_cd → SPOTS_CORE 룰 1단계 매칭 (ADR 0001)
-- SPOTS_CORE 캐시 컬럼 (today/upcoming concentration) 갱신
+- raw_tats_name + signgu_cd → SPOTS 룰 1단계 매칭 (ADR 0001)
+- SPOTS 캐시 컬럼 (today/upcoming concentration) 갱신
 - 7일 이전 예측 row cleanup
 
 [규약]
 - SPOT_CONGESTION_FORECAST = UPSERT (matched/unmatched 인덱스별 분리 적재)
-- SPOTS_CORE.{today_concentration_rate, upcoming_concentration_avg, concentration_updated_at}
+- SPOTS.{today_concentration_rate, upcoming_concentration_avg, concentration_updated_at}
   은 본 도메인이 RW 권한. 다른 컬럼은 안 건드림.
 - source='tourapi'만 적재 (CHECK 제약 chk_spot_congestion_trace_consistency:
   source='llm'은 trace NOT NULL 필수, 'tourapi'/'rule'은 trace IS NULL).
@@ -145,9 +145,9 @@ class CongestionRepository:
 
         양쪽(DB title + 입력 raw_tats_name)에 같은 정규화 적용해서 비교.
 
-        회색지대(약어/한영 — "BEXCO" vs "벡스코" 류, SPOTS_CORE 자체 부재)는 None 반환
+        회색지대(약어/한영 — "BEXCO" vs "벡스코" 류, SPOTS 자체 부재)는 None 반환
         → 호출자가 unmatched로 적재. 후속 PR(`feat/spots-congestion-rematch`)에서
-        SPOTS_CORE 적재 정책 보완 + LLM 회색지대 매칭 도입.
+        SPOTS 적재 정책 보완 + LLM 회색지대 매칭 도입.
 
         성능 노트:
             regexp_replace는 일반 title 인덱스를 타지 못함. 다만 (l_dong_signgu_cd,
@@ -165,7 +165,7 @@ class CongestionRepository:
             row = await conn.execute(
                 r"""
                 SELECT content_id
-                  FROM spots_core
+                  FROM spots
                  WHERE l_dong_signgu_cd = %s
                    AND is_active        = TRUE
                    AND regexp_replace(
@@ -186,7 +186,7 @@ class CongestionRepository:
                 return None
             return cast(str, cast(dict[str, Any], result)["content_id"])
 
-    # ─── 3. SPOTS_CORE 캐시 갱신 ────────────────────────────────
+    # ─── 3. SPOTS 캐시 갱신 ─────────────────────────────────────
 
     async def refresh_today_concentration_cache(
         self,
@@ -194,7 +194,7 @@ class CongestionRepository:
         today: date,
         updated_at: datetime,
     ) -> int:
-        """SPOTS_CORE의 혼잡도 캐시 3컬럼 UPDATE.
+        """SPOTS의 혼잡도 캐시 3컬럼 UPDATE.
 
         - today_concentration_rate: base_ymd = TODAY (KST)
         - upcoming_concentration_avg: base_ymd ∈ [TODAY+1, TODAY+3] 평균 (3일, today 미포함)
@@ -233,7 +233,7 @@ class CongestionRepository:
                        AND source       = 'tourapi'
                      GROUP BY content_id
                 )
-                UPDATE spots_core sc
+                UPDATE spots sc
                    SET today_concentration_rate    = td.concentration_rate,
                        upcoming_concentration_avg = ud.avg_rate,
                        concentration_updated_at   = %s

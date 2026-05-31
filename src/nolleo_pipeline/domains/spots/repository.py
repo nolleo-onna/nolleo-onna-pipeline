@@ -5,7 +5,7 @@
 - operation.md §2 UPSERT/REPLACE 정책 + §14 트랜잭션 경계 강제.
 
 [규약]
-- SPOTS_CORE / SPOT_DETAILS / SPOTS_RAW_SNAPSHOTS = UPSERT (ON CONFLICT DO UPDATE)
+- SPOTS / SPOT_DETAILS / SPOTS_RAW_SNAPSHOTS = UPSERT (ON CONFLICT DO UPDATE)
 - SPOT_IMAGES = REPLACE (DELETE + INSERT, 같은 트랜잭션 안에서)
 - 캐시 컬럼(overview_summary, popularity_score 등)은 다른 잡 소유 → 여기서 안 건드림
 """
@@ -69,7 +69,7 @@ class SpotsRepository:
         self,
         content_ids: list[str],
     ) -> dict[str, datetime | None]:
-        """SPOTS_CORE.source_modified_time를 content_id 목록으로 조회.
+        """SPOTS.source_modified_time를 content_id 목록으로 조회.
 
         상세 4개 endpoint 호출 전에 변경 여부를 선별해 API 호출량을 절감한다.
         """
@@ -80,7 +80,7 @@ class SpotsRepository:
             row = await conn.execute(
                 """
                 SELECT content_id, source_modified_time
-                  FROM spots_core
+                  FROM spots
                  WHERE content_id = ANY(%s)
                 """,
                 (content_ids,),
@@ -109,7 +109,7 @@ class SpotsRepository:
             row = await conn.execute(
                 """
                 SELECT count(*) AS total
-                  FROM spots_core
+                  FROM spots
                  WHERE l_dong_regn_cd = ANY(%s)
                    AND content_type_id = ANY(%s)
                    AND source_tour_api = TRUE
@@ -140,7 +140,7 @@ class SpotsRepository:
             row = await conn.execute(
                 """
                 SELECT count(*) AS total
-                  FROM spots_core
+                  FROM spots
                  WHERE l_dong_regn_cd = ANY(%s)
                    AND content_type_id = ANY(%s)
                    AND source_tour_api = TRUE
@@ -183,7 +183,7 @@ class SpotsRepository:
         async with pool.connection() as conn, conn.transaction():
             row = await conn.execute(
                 """
-                UPDATE spots_core
+                UPDATE spots
                    SET is_active      = FALSE,
                        inactive_since = %s
                  WHERE l_dong_regn_cd = ANY(%s)
@@ -202,20 +202,20 @@ class SpotsRepository:
     # ─── 내부 메서드들 ────────────────────────────────────────
 
     async def _upsert_core(self, conn: AsyncConnection, core: SpotCoreRecord) -> None:
-        """SPOTS_CORE UPSERT.
+        """SPOTS UPSERT.
 
         EXCLUDED는 PostgreSQL의 ON CONFLICT 전용 키워드 — "이번에 INSERT 시도했던 값".
         캐시 컬럼(overview_summary, popularity_score 등)은 안 건드림 → 다른 잡이 갱신.
         """
         await conn.execute(
             """
-            INSERT INTO spots_core (
+            INSERT INTO spots (
                 content_id, content_type_id, title,
                 source_tour_api, source_busan_food,
                 map_x, map_y,
                 l_dong_regn_cd, l_dong_signgu_cd,
                 lcls_systm_1, lcls_systm_2, lcls_systm_3,
-                first_image, first_image2,
+                first_image, first_image2, first_image_cpyrht_div_cd,
                 source_modified_time, synced_at, is_active
             ) VALUES (
                 %s, %s, %s,
@@ -223,14 +223,14 @@ class SpotsRepository:
                 %s, %s,
                 %s, %s,
                 %s, %s, %s,
-                %s, %s,
+                %s, %s, %s,
                 %s, %s, %s
             )
             ON CONFLICT (content_id) DO UPDATE SET
                 content_type_id      = EXCLUDED.content_type_id,
                 title                = EXCLUDED.title,
                 source_tour_api      = EXCLUDED.source_tour_api,
-                source_busan_food    = EXCLUDED.source_busan_food OR spots_core.source_busan_food,
+                source_busan_food    = EXCLUDED.source_busan_food OR spots.source_busan_food,
                 map_x                = EXCLUDED.map_x,
                 map_y                = EXCLUDED.map_y,
                 l_dong_regn_cd       = EXCLUDED.l_dong_regn_cd,
@@ -240,6 +240,7 @@ class SpotsRepository:
                 lcls_systm_3         = EXCLUDED.lcls_systm_3,
                 first_image          = EXCLUDED.first_image,
                 first_image2         = EXCLUDED.first_image2,
+                first_image_cpyrht_div_cd = EXCLUDED.first_image_cpyrht_div_cd,
                 source_modified_time = EXCLUDED.source_modified_time,
                 synced_at            = EXCLUDED.synced_at,
                 is_active            = TRUE,            -- 재등장 시 재활성화
@@ -251,7 +252,7 @@ class SpotsRepository:
                 core.map_x, core.map_y,
                 core.l_dong_regn_cd, core.l_dong_signgu_cd,
                 core.lcls_systm_1, core.lcls_systm_2, core.lcls_systm_3,
-                core.first_image, core.first_image2,
+                core.first_image, core.first_image2, core.first_image_cpyrht_div_cd,
                 core.source_modified_time, core.synced_at, core.is_active,
             ),
         )
@@ -264,18 +265,19 @@ class SpotsRepository:
         await conn.execute(
             """
             INSERT INTO spot_details (
-                content_id, tel, homepage,
+                content_id, tel, tel_name, homepage,
                 addr1, addr2, zipcode,
                 overview, overview_hash, intro,
-                parking_available, created_time
+                parking_available, source_created_at
             ) VALUES (
-                %s, %s, %s,
+                %s, %s, %s, %s,
                 %s, %s, %s,
                 %s, %s, %s,
                 %s, %s
             )
             ON CONFLICT (content_id) DO UPDATE SET
                 tel               = EXCLUDED.tel,
+                tel_name          = EXCLUDED.tel_name,
                 homepage          = EXCLUDED.homepage,
                 addr1             = EXCLUDED.addr1,
                 addr2             = EXCLUDED.addr2,
@@ -284,14 +286,14 @@ class SpotsRepository:
                 overview_hash     = EXCLUDED.overview_hash,
                 intro             = EXCLUDED.intro,
                 parking_available = EXCLUDED.parking_available,
-                created_time      = EXCLUDED.created_time
+                source_created_at = EXCLUDED.source_created_at
             """,
             (
-                detail.content_id, detail.tel, detail.homepage,
+                detail.content_id, detail.tel, detail.tel_name, detail.homepage,
                 detail.addr1, detail.addr2, detail.zipcode,
                 detail.overview, detail.overview_hash,
                 Json(detail.intro) if detail.intro is not None else None,  # JSONB 래핑
-                detail.parking_available, detail.created_time,
+                detail.parking_available, detail.source_created_at,
             ),
         )
 
@@ -332,8 +334,8 @@ class SpotsRepository:
         await conn.cursor().executemany(
             """
             INSERT INTO spot_images (
-                content_id, origin_img_url, small_img_url, img_name, serial_num
-            ) VALUES (%s, %s, %s, %s, %s)
+                content_id, origin_img_url, small_img_url, img_name, cpyrht_div_cd, serial_num
+            ) VALUES (%s, %s, %s, %s, %s, %s)
             """,
             [
                 (
@@ -341,6 +343,7 @@ class SpotsRepository:
                     img.origin_img_url,
                     img.small_img_url,
                     img.img_name,
+                    img.cpyrht_div_cd,
                     img.serial_num,
                 )
                 for img in images
