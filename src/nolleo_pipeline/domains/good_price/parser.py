@@ -359,7 +359,7 @@ def _first_menu_value(
 
 
 def _first(row: dict[str, Any], *keys: str) -> str | None:
-    lower_map = {str(key).casefold(): key for key in row}
+    lower_map = {str(key).strip().casefold(): key for key in row}
     for key in keys:
         actual = lower_map.get(key.casefold())
         if actual is None:
@@ -391,10 +391,14 @@ def _parse_price(value: Any) -> int | None:
     text = _str(value)
     if text is None:
         return None
-    digits = re.sub(r"[^0-9]", "", text)
-    if not digits:
+    normalized = text.replace(" ", "")
+    first_number = re.search(r"\d[\d,]*", normalized)
+    if first_number is None:
         return None
-    return int(digits)
+    token = first_number.group(0)
+    if "," in token and not re.fullmatch(r"\d{1,3}(,\d{3})+", token):
+        return None
+    return int(token.replace(",", ""))
 
 
 def _normalize_tel(value: str | None) -> str | None:

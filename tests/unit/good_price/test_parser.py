@@ -140,6 +140,43 @@ def test_parse_good_price_file_row_accepts_gu_specific_headers() -> None:
     assert parsed.place.delivery_available is False
 
 
+def test_parse_good_price_file_row_accepts_spaced_price_headers() -> None:
+    parsed = parse_good_price_file_row(
+        {
+            "업종": "중식",
+            "업소명": "오곡흑미쌀짜장",
+            "주소(도로명 새주소)": "부산광역시 수영구 연수로415번길 30-13",
+            "품목1": "자장면",
+            " 가격1 ": "6000 ",
+            "품목2": "짬뽕",
+            " 가격2 ": "8000 ",
+        },
+        fetched_at=now_utc(),
+        source_file="수영구.csv",
+    )
+
+    assert [(menu.menu_name, menu.price) for menu in parsed.menus] == [
+        ("자장면", 6000),
+        ("짬뽕", 8000),
+    ]
+
+
+def test_parse_good_price_file_row_uses_min_price_for_price_range() -> None:
+    parsed = parse_good_price_file_row(
+        {
+            "업종": "기타서비스",
+            "업소명": "동신컴퓨터(솔루션)",
+            "소재지주소": "부산광역시 서구 구덕로296번길 57",
+            "품목1": "리퍼 컴퓨터",
+            "가격1": "200000~300000",
+        },
+        fetched_at=now_utc(),
+        source_file="서구.csv",
+    )
+
+    assert [(menu.menu_name, menu.price) for menu in parsed.menus] == [("리퍼 컴퓨터", 200000)]
+
+
 def test_parse_busan_food_row_maps_api_fields() -> None:
     parsed = parse_busan_food_row(
         {

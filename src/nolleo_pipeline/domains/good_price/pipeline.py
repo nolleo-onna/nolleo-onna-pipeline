@@ -26,6 +26,26 @@ JOB_GOOD_PRICE_FILE = "good_price_file_import"
 JOB_GOOD_PRICE_ODCLOUD = "good_price_odcloud_sync"
 JOB_BUSAN_FOOD_API = "busan_food_sync"
 
+_BLOCK_PLACE_KEYWORDS = (
+    "커트",
+    "파마",
+    "세탁",
+    "미용",
+    "헤어",
+    "이발",
+    "이미용",
+    "숙박",
+    "모텔",
+    "호텔",
+    "펜션",
+)
+
+_BLOCK_MENU_KEYWORDS = (
+    "커트",
+    "파마",
+    "세탁",
+)
+
 
 async def run_good_price_shop_api_sync(
     *,
@@ -139,6 +159,10 @@ async def run_good_price_odcloud_sync(
                             fetched_at=fetched_at,
                             source_file=source_name,
                         )
+                        if _should_skip_by_keywords(parsed):
+                            ctx.metadata.setdefault("skipped_keyword_count", 0)
+                            ctx.metadata["skipped_keyword_count"] += 1
+                            continue
                         await repo.upsert_place(parsed)
                         ctx.records_upserted += 1
                     except Exception as exc:  # noqa: BLE001
@@ -185,6 +209,10 @@ async def _run_public_data_sync(
                 for row in rows:
                     try:
                         parsed = row_parser(row, fetched_at=fetched_at)
+                        if _should_skip_by_keywords(parsed):
+                            ctx.metadata.setdefault("skipped_keyword_count", 0)
+                            ctx.metadata["skipped_keyword_count"] += 1
+                            continue
                         await repo.upsert_place(parsed)
                         ctx.records_upserted += 1
                     except Exception as exc:  # noqa: BLE001
@@ -215,6 +243,10 @@ async def import_good_price_file(path: str | Path) -> None:
                         fetched_at=fetched_at,
                         source_file=str(source_path),
                     )
+                    if _should_skip_by_keywords(parsed):
+                        ctx.metadata.setdefault("skipped_keyword_count", 0)
+                        ctx.metadata["skipped_keyword_count"] += 1
+                        continue
                     await repo.upsert_place(parsed)
                     ctx.records_upserted += 1
                 except Exception as exc:  # noqa: BLE001
@@ -232,3 +264,29 @@ def _row_label(row: object) -> str:
         if value:
             return str(value)[:120]
     return repr(row)[:120]
+
+
+def _contains_keyword(text: str | None, keywords: tuple[str, ...]) -> bool:
+    if text is None:
+        return False
+    normalized = text.replace(" ", "")
+    return any(keyword in normalized for keyword in keywords)
+
+
+def _should_skip_by_keywords(parsed: ParsedFoodPlace) -> bool:
+    place = parsed.place
+
+    # 장소 자체가 비음식 카테고리/키워드면 전체 스킵.
+    if _contains_keyword(place.name, _BLOCK_PLACE_KEYWORDS):
+        return True
+    if _contains_keyword(place.business_category, _BLOCK_PLACE_KEYWORDS):
+        return True
+    if _contains_keyword(place.representative_menu, _BLOCK_PLACE_KEYWORDS):
+        return True
+
+    # 메뉴명에 차단 키워드가 보이면 장소 전체를 스킵해
+    # food_places / food_place_menus 모두 미적재로 유지.
+    for menu in parsed.menus:
+        if _contains_keyword(menu.menu_name, _BLOCK_MENU_KEYWORDS):
+            return True
+    return False
