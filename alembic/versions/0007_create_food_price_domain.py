@@ -102,6 +102,7 @@ def upgrade() -> None:
         source          VARCHAR(40)  NOT NULL
             CHECK (source IN (
                 'good_price_shop',
+                'good_price_store',
                 'good_price_menu',
                 'good_price_file',
                 'redtable',
