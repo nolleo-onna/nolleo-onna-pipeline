@@ -27,6 +27,11 @@ from nolleo_pipeline.domains.spots.models import (
     SpotRawSnapshot,
 )
 
+SPOTS_TABLE = "sp_spots"
+SPOT_DETAILS_TABLE = "sp_spot_details"
+SPOT_IMAGES_TABLE = "sp_spot_images"
+SPOTS_RAW_SNAPSHOTS_TABLE = "sp_spots_raw_snapshots"
+
 
 class SpotsRepository:
     """파이프라인이 사용할 DB I/O 진입점.
@@ -56,7 +61,7 @@ class SpotsRepository:
         pool = await get_pool()
         async with pool.connection() as conn:
             row = await conn.execute(
-                "SELECT overview_hash FROM spot_details WHERE content_id = %s",
+                f"SELECT overview_hash FROM {SPOT_DETAILS_TABLE} WHERE content_id = %s",
                 (content_id,),
             )
             result = await row.fetchone()
@@ -78,9 +83,9 @@ class SpotsRepository:
         pool = await get_pool()
         async with pool.connection() as conn:
             row = await conn.execute(
-                """
+                f"""
                 SELECT content_id, source_modified_time
-                  FROM spots
+                  FROM {SPOTS_TABLE}
                  WHERE content_id = ANY(%s)
                 """,
                 (content_ids,),
@@ -107,9 +112,9 @@ class SpotsRepository:
         pool = await get_pool()
         async with pool.connection() as conn:
             row = await conn.execute(
-                """
+                f"""
                 SELECT count(*) AS total
-                  FROM spots
+                  FROM {SPOTS_TABLE}
                  WHERE l_dong_regn_cd = ANY(%s)
                    AND content_type_id = ANY(%s)
                    AND source_tour_api = TRUE
@@ -138,9 +143,9 @@ class SpotsRepository:
         pool = await get_pool()
         async with pool.connection() as conn:
             row = await conn.execute(
-                """
+                f"""
                 SELECT count(*) AS total
-                  FROM spots
+                  FROM {SPOTS_TABLE}
                  WHERE l_dong_regn_cd = ANY(%s)
                    AND content_type_id = ANY(%s)
                    AND source_tour_api = TRUE
@@ -182,8 +187,8 @@ class SpotsRepository:
         pool = await get_pool()
         async with pool.connection() as conn, conn.transaction():
             row = await conn.execute(
-                """
-                UPDATE spots
+                f"""
+                UPDATE {SPOTS_TABLE}
                    SET is_active      = FALSE,
                        inactive_since = %s
                  WHERE l_dong_regn_cd = ANY(%s)
@@ -208,8 +213,8 @@ class SpotsRepository:
         캐시 컬럼(overview_summary, popularity_score 등)은 안 건드림 → 다른 잡이 갱신.
         """
         await conn.execute(
-            """
-            INSERT INTO spots (
+            f"""
+            INSERT INTO {SPOTS_TABLE} (
                 content_id, content_type_id, title,
                 source_tour_api, source_busan_food,
                 map_x, map_y,
@@ -230,7 +235,7 @@ class SpotsRepository:
                 content_type_id      = EXCLUDED.content_type_id,
                 title                = EXCLUDED.title,
                 source_tour_api      = EXCLUDED.source_tour_api,
-                source_busan_food    = EXCLUDED.source_busan_food OR spots.source_busan_food,
+                source_busan_food    = EXCLUDED.source_busan_food OR {SPOTS_TABLE}.source_busan_food,
                 map_x                = EXCLUDED.map_x,
                 map_y                = EXCLUDED.map_y,
                 l_dong_regn_cd       = EXCLUDED.l_dong_regn_cd,
@@ -263,8 +268,8 @@ class SpotsRepository:
         business_hours / business_hours_* 컬럼은 LLM 단계 소유 → 여기서 안 건드림.
         """
         await conn.execute(
-            """
-            INSERT INTO spot_details (
+            f"""
+            INSERT INTO {SPOT_DETAILS_TABLE} (
                 content_id, tel, tel_name, homepage,
                 addr1, addr2, zipcode,
                 overview, overview_hash, intro,
@@ -300,8 +305,8 @@ class SpotsRepository:
     async def _upsert_raw(self, conn: AsyncConnection, raw: SpotRawSnapshot) -> None:
         """SPOTS_RAW_SNAPSHOTS UPSERT (최신만 보관, 이력 X)."""
         await conn.execute(
-            """
-            INSERT INTO spots_raw_snapshots (content_id, raw_json, fetched_at)
+            f"""
+            INSERT INTO {SPOTS_RAW_SNAPSHOTS_TABLE} (content_id, raw_json, fetched_at)
             VALUES (%s, %s, %s)
             ON CONFLICT (content_id) DO UPDATE SET
                 raw_json   = EXCLUDED.raw_json,
@@ -323,7 +328,7 @@ class SpotsRepository:
         """
         # 기존 이미지 전부 삭제
         await conn.execute(
-            "DELETE FROM spot_images WHERE content_id = %s",
+            f"DELETE FROM {SPOT_IMAGES_TABLE} WHERE content_id = %s",
             (content_id,),
         )
 
@@ -332,8 +337,8 @@ class SpotsRepository:
 
         # executemany로 일괄 INSERT
         await conn.cursor().executemany(
-            """
-            INSERT INTO spot_images (
+            f"""
+            INSERT INTO {SPOT_IMAGES_TABLE} (
                 content_id, origin_img_url, small_img_url, img_name, cpyrht_div_cd, serial_num
             ) VALUES (%s, %s, %s, %s, %s, %s)
             """,
