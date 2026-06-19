@@ -69,8 +69,8 @@ SELECT * FROM alembic_version;
 - `travel_courses`, `travel_course_raw_snapshots`, `course_items`
 - `generated_courses`, `generated_course_items`, `course_decisions`
 - `sync_logs`
-- `food_places`, `food_place_sources`, `food_place_menus`
-- `food_price_observations`, `food_place_spot_matches`, `spot_price_summary`
+- `fd_food_places`, `fd_food_place_sources`, `fd_food_place_menus`
+- `fd_food_price_observations`, `fd_food_place_spot_matches`, `sp_spot_price_summary`
 - `ldong_codes`
 
 ## 6. 스모크 테스트

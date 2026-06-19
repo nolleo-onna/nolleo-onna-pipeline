@@ -18,13 +18,22 @@ from nolleo_pipeline.domains.good_price.parser import (
     parse_good_price_menu_row,
     parse_good_price_store_row,
 )
-from nolleo_pipeline.domains.good_price.repository import GoodPriceRepository
+from nolleo_pipeline.domains.good_price.matcher import MAX_CANDIDATE_DISTANCE_M
+from nolleo_pipeline.domains.good_price.repository import (
+    FoodPlaceStoreEnrichRunResult,
+    FoodSpotMatchRunResult,
+    GoodPriceRepository,
+    SpotPriceSummaryRefreshResult,
+)
 
 JOB_GOOD_PRICE_API = "good_price_store_sync"
 JOB_GOOD_PRICE_MENU_API = "good_price_menu_sync"
 JOB_GOOD_PRICE_FILE = "good_price_file_import"
 JOB_GOOD_PRICE_ODCLOUD = "good_price_odcloud_sync"
 JOB_BUSAN_FOOD_API = "busan_food_sync"
+JOB_SPOT_PRICE_SUMMARY_REFRESH = "spot_price_summary_refresh"
+JOB_FOOD_SPOT_MATCH = "food_spot_rule_match"
+JOB_FOOD_PLACE_STORE_ENRICH = "food_place_store_enrich"
 
 _BLOCK_PLACE_KEYWORDS = (
     "커트",
@@ -61,7 +70,7 @@ async def run_good_price_store_api_sync(
     max_pages: int | None = None,
     num_of_rows: int = 100,
 ) -> None:
-    """부산 착한가격업소 목록 API를 food_* 테이블로 적재."""
+    """부산 착한가격업소 목록 API를 fd_food_* 테이블로 적재."""
     settings = get_settings()
     if not settings.busan_goodprice_api_key:
         raise ValueError("BUSAN_GOODPRICE_API_KEY is required")
@@ -81,7 +90,7 @@ async def run_good_price_menu_api_sync(
     max_pages: int | None = None,
     num_of_rows: int = 100,
 ) -> None:
-    """부산 착한가격업소 메뉴 API를 food_* 테이블로 적재."""
+    """부산 착한가격업소 메뉴 API를 fd_food_* 테이블로 적재."""
     settings = get_settings()
     if not settings.busan_goodprice_api_key:
         raise ValueError("BUSAN_GOODPRICE_API_KEY is required")
@@ -101,7 +110,7 @@ async def run_busan_food_api_sync(
     max_pages: int | None = None,
     num_of_rows: int = 100,
 ) -> None:
-    """부산맛집정보 API를 food_* 테이블로 적재."""
+    """부산맛집정보 API를 fd_food_* 테이블로 적재."""
     settings = get_settings()
     service_key = settings.busan_food_api_key or settings.busan_goodprice_api_key
     if not service_key:
@@ -124,7 +133,7 @@ async def run_good_price_odcloud_sync(
     max_pages: int | None = None,
     per_page: int = 100,
 ) -> None:
-    """odcloud 착한가격업소 데이터셋 API를 food_* 테이블로 적재."""
+    """odcloud 착한가격업소 데이터셋 API를 fd_food_* 테이블로 적재."""
     settings = get_settings()
     service_key = settings.busan_odcloud_api_key or settings.busan_goodprice_api_key
     if not service_key:
@@ -174,6 +183,82 @@ async def run_good_price_odcloud_sync(
                     break
                 page += 1
             ctx.metadata["last_page"] = page
+
+
+async def run_food_place_store_enrich_sync(
+    *,
+    dry_run: bool = False,
+    limit: int | None = None,
+) -> FoodPlaceStoreEnrichRunResult:
+    """good_price_store 메타데이터를 같은 이름의 good_price_menu row에 보강."""
+    repo = GoodPriceRepository()
+    async with sync_log_run(JOB_FOOD_PLACE_STORE_ENRICH, run_type="manual") as ctx:
+        ctx.metadata["dry_run"] = dry_run
+        ctx.metadata["limit"] = limit
+        result = await repo.enrich_menu_places_from_store(dry_run=dry_run, limit=limit)
+        ctx.records_fetched = result.menu_places_scanned
+        ctx.records_upserted = result.enriched_count
+        ctx.metadata["store_name_matches"] = result.store_name_matches
+        ctx.metadata["address_filled"] = result.address_filled
+        ctx.metadata["coords_filled"] = result.coords_filled
+        ctx.metadata["tel_filled"] = result.tel_filled
+        ctx.metadata["no_store_match"] = result.no_store_match
+        return result
+
+
+async def run_food_spot_match_sync(
+    *,
+    dry_run: bool = False,
+    limit: int | None = None,
+    rematch_pending: bool = False,
+    max_distance_m: float | None = None,
+) -> FoodSpotMatchRunResult:
+    """fd_food_places를 TourAPI 음식점 spots와 룰 매칭해 fd_food_place_spot_matches를 채운다."""
+    repo = GoodPriceRepository()
+    async with sync_log_run(JOB_FOOD_SPOT_MATCH, run_type="manual") as ctx:
+        ctx.metadata["dry_run"] = dry_run
+        ctx.metadata["limit"] = limit
+        ctx.metadata["rematch_pending"] = rematch_pending
+        resolved_max_distance_m = (
+            max_distance_m if max_distance_m is not None else MAX_CANDIDATE_DISTANCE_M
+        )
+        ctx.metadata["max_distance_m"] = resolved_max_distance_m
+        result = await repo.run_food_spot_rule_matching(
+            dry_run=dry_run,
+            limit=limit,
+            rematch_pending=rematch_pending,
+            max_distance_m=resolved_max_distance_m,
+        )
+        ctx.records_fetched = result.places_scanned
+        ctx.records_upserted = result.matches_upserted
+        ctx.metadata["places_scanned"] = result.places_scanned
+        ctx.metadata["matched_count"] = result.matched_count
+        ctx.metadata["pending_count"] = result.pending_count
+        ctx.metadata["separate_count"] = result.separate_count
+        ctx.metadata["no_candidate_count"] = result.no_candidate_count
+        return result
+
+
+async def refresh_spot_price_summary(
+    *,
+    dry_run: bool = False,
+    prune_missing: bool = False,
+) -> SpotPriceSummaryRefreshResult:
+    """fd_food_* 현재 메뉴 가격을 sp_spot_price_summary 캐시로 재계산."""
+    repo = GoodPriceRepository()
+    async with sync_log_run(JOB_SPOT_PRICE_SUMMARY_REFRESH, run_type="manual") as ctx:
+        ctx.metadata["dry_run"] = dry_run
+        ctx.metadata["prune_missing"] = prune_missing
+        result = await repo.refresh_spot_price_summary(
+            dry_run=dry_run,
+            prune_missing=prune_missing,
+        )
+        ctx.records_fetched = result.aggregated_count
+        ctx.records_upserted = result.upserted_count
+        ctx.metadata["aggregated_count"] = result.aggregated_count
+        ctx.metadata["upserted_count"] = result.upserted_count
+        ctx.metadata["pruned_count"] = result.pruned_count
+        return result
 
 
 async def _run_public_data_sync(
@@ -227,7 +312,7 @@ async def _run_public_data_sync(
 
 
 async def import_good_price_file(path: str | Path) -> None:
-    """착한가격업소 CSV 파일을 food_* 테이블로 적재."""
+    """착한가격업소 CSV 파일을 fd_food_* 테이블로 적재."""
     source_path = Path(path)
     repo = GoodPriceRepository()
     async with sync_log_run(JOB_GOOD_PRICE_FILE, run_type="manual") as ctx:
@@ -285,7 +370,7 @@ def _should_skip_by_keywords(parsed: ParsedFoodPlace) -> bool:
         return True
 
     # 메뉴명에 차단 키워드가 보이면 장소 전체를 스킵해
-    # food_places / food_place_menus 모두 미적재로 유지.
+    # fd_food_places / fd_food_place_menus 모두 미적재로 유지.
     for menu in parsed.menus:
         if _contains_keyword(menu.menu_name, _BLOCK_MENU_KEYWORDS):
             return True

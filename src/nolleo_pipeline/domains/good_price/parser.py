@@ -74,7 +74,7 @@ def parse_good_price_store_row(
     *,
     fetched_at: datetime,
 ) -> ParsedFoodPlace:
-    """부산 착한가격업소 목록 API row를 food_* 공통 모델로 정규화."""
+    """부산 착한가격업소 목록 API row를 fd_food_* 공통 모델로 정규화."""
     return _parse_row(
         row,
         fetched_at=fetched_at,
@@ -89,7 +89,7 @@ def parse_good_price_menu_row(
     *,
     fetched_at: datetime,
 ) -> ParsedFoodPlace:
-    """부산 착한가격업소 메뉴 API row를 food_* 공통 모델로 정규화."""
+    """부산 착한가격업소 메뉴 API row를 fd_food_* 공통 모델로 정규화."""
     return _parse_row(
         row,
         fetched_at=fetched_at,
@@ -106,7 +106,7 @@ def parse_good_price_file_row(
     fetched_at: datetime,
     source_file: str | None = None,
 ) -> ParsedFoodPlace:
-    """착한가격업소 CSV/파일 row를 food_* 공통 모델로 정규화."""
+    """착한가격업소 CSV/파일 row를 fd_food_* 공통 모델로 정규화."""
     raw = dict(row)
     if source_file:
         raw["_source_file"] = source_file
@@ -124,7 +124,7 @@ def parse_busan_food_row(
     *,
     fetched_at: datetime,
 ) -> ParsedFoodPlace:
-    """부산맛집정보 API row를 food_* 공통 모델로 정규화."""
+    """부산맛집정보 API row를 fd_food_* 공통 모델로 정규화."""
     return _parse_row(
         row,
         fetched_at=fetched_at,

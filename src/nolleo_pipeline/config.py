@@ -45,6 +45,7 @@ class Settings(BaseSettings):
         alias="BUSAN_FOOD_API_URL",
     )
     busan_odcloud_api_key: str = Field(default="", alias="BUSAN_ODCLOUD_API_KEY")
+    kakao_rest_api_key: str = Field(default="", alias="KAKAO_REST_API_KEY")
 
     @property
     def busan_goodprice_api_url(self) -> str:

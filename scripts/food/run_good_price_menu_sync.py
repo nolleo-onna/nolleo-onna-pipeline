@@ -1,4 +1,4 @@
-"""부산 착한가격업소 메뉴 API → food_* 테이블 적재."""
+"""부산 착한가격업소 메뉴 API → fd_food_* 테이블 적재."""
 from __future__ import annotations
 
 import argparse
@@ -9,7 +9,7 @@ from nolleo_pipeline.domains.good_price.pipeline import run_good_price_menu_api_
 
 
 async def main() -> None:
-    parser = argparse.ArgumentParser(description="Sync Busan good-price menus into food_*")
+    parser = argparse.ArgumentParser(description="Sync Busan good-price menus into fd_food_*")
     parser.add_argument("--max-pages", type=int, default=None)
     parser.add_argument("--num-of-rows", type=int, default=100)
     args = parser.parse_args()
