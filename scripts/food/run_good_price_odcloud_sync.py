@@ -1,4 +1,4 @@
-"""odcloud 착한가격업소 데이터셋 API → food_* 테이블 적재."""
+"""odcloud 착한가격업소 데이터셋 API → fd_food_* 테이블 적재."""
 from __future__ import annotations
 
 import argparse
@@ -9,7 +9,7 @@ from nolleo_pipeline.domains.good_price.pipeline import run_good_price_odcloud_s
 
 
 async def main() -> None:
-    parser = argparse.ArgumentParser(description="Sync odcloud good-price dataset into food_*")
+    parser = argparse.ArgumentParser(description="Sync odcloud good-price dataset into fd_food_*")
     parser.add_argument("--endpoint-url", required=True, help="odcloud dataset API endpoint URL")
     parser.add_argument("--source-name", required=True, help="human-readable source label")
     parser.add_argument("--max-pages", type=int, default=None)

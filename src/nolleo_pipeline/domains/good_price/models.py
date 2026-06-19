@@ -30,7 +30,7 @@ ObservationSourceType = Literal["api", "file_import", "admin_manual", "user_repo
 
 
 class FoodPlaceRecord(BaseModel):
-    """food_places UPSERT용 장소 레코드."""
+    """fd_food_places UPSERT용 장소 레코드."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -52,7 +52,7 @@ class FoodPlaceRecord(BaseModel):
 
 
 class FoodPlaceSourceRecord(BaseModel):
-    """food_place_sources UPSERT용 원천 식별자/원본 row."""
+    """fd_food_place_sources UPSERT용 원천 식별자/원본 row."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -64,7 +64,7 @@ class FoodPlaceSourceRecord(BaseModel):
 
 
 class FoodPlaceMenuRecord(BaseModel):
-    """food_place_menus / food_price_observations 공통 메뉴 가격 레코드."""
+    """fd_food_place_menus / fd_food_price_observations 공통 메뉴 가격 레코드."""
 
     model_config = ConfigDict(extra="forbid")
 

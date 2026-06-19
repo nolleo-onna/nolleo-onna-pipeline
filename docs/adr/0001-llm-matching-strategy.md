@@ -5,7 +5,7 @@
 - 적용 범위: GOOD_PRICE_SHOPS ↔ SPOTS_CORE 매칭, SPOT_CONGESTION_FORECAST.raw_tats_name → SPOTS_CORE 매칭, 향후 추가될 외부 소스 매칭
 
 > 현재 스키마에서는 `GOOD_PRICE_SHOPS`와 `SPOTS_CORE`를 사용하지 않는다.
-> 음식 장소 매칭은 `food_place_spot_matches` ↔ `spots` 기준으로 해석한다.
+> 음식 장소 매칭은 `fd_food_place_spot_matches` ↔ `spots` 기준으로 해석한다.
 > 혼잡도 매칭은 현재 마이그레이션 범위 밖이다.
 
 ## Context

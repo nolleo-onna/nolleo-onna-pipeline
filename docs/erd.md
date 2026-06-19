@@ -12,7 +12,7 @@
 | 스팟 | `spots`, `spot_details`, `spots_raw_snapshots`, `spot_images` | TourAPI 관광지/문화시설/레포츠/음식점 |
 | 공식 여행코스 | `travel_courses`, `travel_course_raw_snapshots`, `course_items` | TourAPI 공식 코스 마스터 |
 | 생성 코스 | `generated_courses`, `generated_course_items`, `course_decisions` | 사용자가 저장/공유하는 추천 코스 |
-| 음식/가격 | `food_places`, `food_place_sources`, `food_place_menus`, `food_price_observations`, `food_place_spot_matches`, `spot_price_summary` | 가성비 음식 장소와 메뉴 가격 |
+| 음식/가격 | `fd_food_places`, `fd_food_place_sources`, `fd_food_place_menus`, `fd_food_price_observations`, `fd_food_place_spot_matches`, `sp_spot_price_summary` | 가성비 음식 장소와 메뉴 가격 |
 | 지역 코드 | `ldong_codes` | 부산 16개 법정동 시군구 코드 |
 | 운영 | `sync_logs` | 파이프라인 실행 이력 |
 
@@ -22,8 +22,8 @@
 - 서비스 테이블은 `public`, 임베딩/벡터용 스키마는 `vectors`를 사용합니다.
 - 원천 API의 생성/수정 시각은 `source_created_at`, `source_modified_time`처럼 별도 명칭을 씁니다.
 - 앱 내부 감사 컬럼은 `created_at`, `created_by`, `updated_at`, `updated_by`, `deleted_at`, `deleted_by`를 씁니다.
-- `food_places`는 여러 가격/음식 원천을 공통 모델로 통합하고, 필요할 때 `spots`와 매칭합니다.
-- `spot_price_summary`는 추천 조회 최적화 캐시이며 source of truth가 아닙니다.
+- `fd_food_places`는 여러 가격/음식 원천을 공통 모델로 통합하고, 필요할 때 `spots`와 매칭합니다.
+- `sp_spot_price_summary`는 추천 조회 최적화 캐시이며 source of truth가 아닙니다.
 
 ## Mermaid ERD
 
