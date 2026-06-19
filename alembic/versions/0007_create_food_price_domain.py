@@ -102,7 +102,6 @@ def upgrade() -> None:
         source          VARCHAR(40)  NOT NULL
             CHECK (source IN (
                 'good_price_shop',
-                'good_price_store',
                 'good_price_menu',
                 'good_price_file',
                 'redtable',
@@ -202,7 +201,7 @@ def upgrade() -> None:
         review_status       VARCHAR(20)  NOT NULL DEFAULT 'approved'
             CHECK (review_status IN ('pending', 'approved', 'rejected')),
         reviewed_by         BIGINT
-            REFERENCES public.users(id) ON DELETE SET NULL,
+            REFERENCES public.mb_user_info(id) ON DELETE SET NULL,
         reviewed_at         TIMESTAMPTZ,
         reviewer_note       TEXT,
         created_at          TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
@@ -243,7 +242,7 @@ def upgrade() -> None:
         match_method        VARCHAR(20)
             CHECK (match_method IS NULL OR match_method IN ('rule', 'manual', 'llm')),
         reviewed_by         BIGINT
-            REFERENCES public.users(id) ON DELETE SET NULL,
+            REFERENCES public.mb_user_info(id) ON DELETE SET NULL,
         reviewed_at         TIMESTAMPTZ,
         reviewer_note       TEXT,
         created_at          TIMESTAMPTZ  NOT NULL DEFAULT NOW(),

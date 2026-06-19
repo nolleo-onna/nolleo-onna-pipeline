@@ -23,6 +23,14 @@ from typing import Any, cast
 from nolleo_pipeline.common.db import get_pool
 from nolleo_pipeline.domains.congestion.models import CongestionForecastRecord
 
+# 접두사 컨벤션(sp_/cd_) 적용된 실제 테이블명. RDS 스키마/alembic과 정합.
+SPOTS_TABLE = "sp_spots"
+LDONG_CODES_TABLE = "cd_ldong_codes"
+# ⚠ 미존재 테이블: 혼잡도 도메인 스키마가 아직 alembic/RDS에 없음.
+#    별도 마이그레이션(0011_create_congestion_domain 등) 추가 전까지 이 도메인
+#    적재/조회는 동작하지 않는다. 상수만 모아두어 추후 마이그레이션 시 일괄 정합.
+SPOT_CONGESTION_FORECAST_TABLE = "spot_congestion_forecast"
+
 
 class CongestionRepository:
     """파이프라인이 사용할 DB I/O 진입점."""
@@ -62,8 +70,8 @@ class CongestionRepository:
         async with pool.connection() as conn, conn.transaction():
             if matched:
                 await conn.cursor().executemany(
-                    """
-                    INSERT INTO spot_congestion_forecast (
+                    f"""
+                    INSERT INTO {SPOT_CONGESTION_FORECAST_TABLE} (
                         content_id, area_cd, signgu_cd, raw_tats_name,
                         area_name, signgu_name, base_ymd,
                         concentration_rate, level, source, trace, fetched_at
@@ -96,8 +104,8 @@ class CongestionRepository:
 
             if unmatched:
                 await conn.cursor().executemany(
-                    """
-                    INSERT INTO spot_congestion_forecast (
+                    f"""
+                    INSERT INTO {SPOT_CONGESTION_FORECAST_TABLE} (
                         content_id, area_cd, signgu_cd, raw_tats_name,
                         area_name, signgu_name, base_ymd,
                         concentration_rate, level, source, trace, fetched_at
@@ -163,9 +171,9 @@ class CongestionRepository:
         pool = await get_pool()
         async with pool.connection() as conn:
             row = await conn.execute(
-                r"""
+                rf"""
                 SELECT content_id
-                  FROM spots
+                  FROM {SPOTS_TABLE}
                  WHERE l_dong_signgu_cd = %s
                    AND is_active        = TRUE
                    AND regexp_replace(
@@ -219,7 +227,7 @@ class CongestionRepository:
                 """
                 WITH today_data AS (
                     SELECT content_id, concentration_rate
-                      FROM spot_congestion_forecast
+                      FROM {SPOT_CONGESTION_FORECAST_TABLE}
                      WHERE base_ymd     = %s
                        AND content_id  IS NOT NULL
                        AND source       = 'tourapi'
@@ -227,13 +235,13 @@ class CongestionRepository:
                 upcoming_data AS (
                     SELECT content_id,
                            AVG(concentration_rate)::numeric(5,2) AS avg_rate
-                      FROM spot_congestion_forecast
+                      FROM {SPOT_CONGESTION_FORECAST_TABLE}
                      WHERE base_ymd BETWEEN %s AND %s
                        AND content_id  IS NOT NULL
                        AND source       = 'tourapi'
                      GROUP BY content_id
                 )
-                UPDATE spots sc
+                UPDATE {SPOTS_TABLE} sc
                    SET today_concentration_rate    = td.concentration_rate,
                        upcoming_concentration_avg = ud.avg_rate,
                        concentration_updated_at   = %s
@@ -278,9 +286,9 @@ class CongestionRepository:
         pool = await get_pool()
         async with pool.connection() as conn:
             row = await conn.execute(
-                """
+                f"""
                 SELECT regn_cd, signgu_cd
-                  FROM ldong_codes
+                  FROM {LDONG_CODES_TABLE}
                  WHERE regn_cd = %s
                  ORDER BY signgu_cd
                 """,

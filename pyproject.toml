@@ -32,6 +32,9 @@ dev = [
 requires = ["hatchling==1.27.0"]
 build-backend = "hatchling.build"
 
+[project.scripts]
+nolleo = "nolleo_pipeline.cli:main"
+
 [tool.uv]
 package = true
 

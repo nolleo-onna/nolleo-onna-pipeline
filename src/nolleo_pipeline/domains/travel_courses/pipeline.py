@@ -29,12 +29,17 @@ async def run_tourapi_travel_courses_sync(
     l_dong_regn_cd: str = DEFAULT_BUSAN_REGN_CD,
     num_of_rows: int = 100,
     max_pages: int | None = None,
+    run_type: str = "manual",
 ) -> None:
-    """TourAPI 여행코스(contentTypeId=25) 동기화 진입점."""
+    """TourAPI 여행코스(contentTypeId=25) 동기화 진입점.
+
+    run_type: sync_logs.run_type. 하네스(run_job)가 실행 맥락(manual/scheduled)에
+              맞춰 주입한다. 직접 호출 시 기본 "manual".
+    """
     settings = get_settings()
     repo = TravelCoursesRepository()
 
-    async with sync_log_run("tourapi_courses_sync", run_type="manual") as ctx:
+    async with sync_log_run("tourapi_courses_sync", run_type=run_type) as ctx:
         async with build_http_client() as http:
             client = TourApiTravelCourseClient(http, service_key=settings.tour_api_key)
 

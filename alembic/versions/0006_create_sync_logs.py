@@ -24,7 +24,7 @@ def upgrade() -> None:
         status          VARCHAR(20)  NOT NULL DEFAULT 'running'
             CHECK (status IN ('running', 'success', 'failed', 'partial', 'cancelled')),
         triggered_by    BIGINT
-            REFERENCES public.users(id) ON DELETE SET NULL,
+            REFERENCES public.mb_user_info(id) ON DELETE SET NULL,
         parent_run_id   BIGINT
             REFERENCES public.sync_logs(id) ON DELETE SET NULL,
         started_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW(),

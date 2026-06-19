@@ -41,7 +41,7 @@ nolleo-onna-pipeline/
 │   ├── jobs/
 │   └── common/
 ├── tests/
-└── scripts/
+└── scripts/            # 수동 실행/백필/DB 부트스트랩 스크립트 (scripts/README.md)
 ```
 
 ## 주요 명령어
@@ -60,6 +60,7 @@ make format
 - ERD: `docs/erd.md`
 - 운영 정책: `docs/operation.md`
 - 제안서: `docs/proposal.md`
+- 운영 스크립트(수동 실행/백필/DB 부트스트랩): [`scripts/README.md`](scripts/README.md)
 
 ## 기여 가이드 (간단)
 

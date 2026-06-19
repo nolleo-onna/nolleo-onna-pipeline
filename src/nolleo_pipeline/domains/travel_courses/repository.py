@@ -27,6 +27,12 @@ from nolleo_pipeline.domains.travel_courses.models import (
     TravelCourseRecord,
 )
 
+# 접두사 컨벤션(tv_/sp_) 적용된 실제 테이블명. RDS 스키마/alembic과 정합.
+TRAVEL_COURSES_TABLE = "tv_travel_courses"
+TRAVEL_COURSE_RAW_SNAPSHOTS_TABLE = "tv_travel_course_raw_snapshots"
+COURSE_ITEMS_TABLE = "tv_course_items"
+SPOTS_TABLE = "sp_spots"
+
 
 class TravelCoursesRepository:
     """파이프라인에서 호출하는 DB 저장 진입점."""
@@ -45,8 +51,8 @@ class TravelCoursesRepository:
         course: TravelCourseRecord,
     ) -> None:
         await conn.execute(
-            """
-            INSERT INTO travel_courses (
+            f"""
+            INSERT INTO {TRAVEL_COURSES_TABLE} (
                 content_id, title, overview, overview_hash, theme,
                 taketime, taketime_minutes, distance, distance_km,
                 schedule, infocenter_tourcourse, first_image, first_image_cpyrht_div_cd,
@@ -107,8 +113,8 @@ class TravelCoursesRepository:
         raw: CourseRawSnapshot,
     ) -> None:
         await conn.execute(
-            """
-            INSERT INTO travel_course_raw_snapshots (content_id, raw_json, fetched_at)
+            f"""
+            INSERT INTO {TRAVEL_COURSE_RAW_SNAPSHOTS_TABLE} (content_id, raw_json, fetched_at)
             VALUES (%s, %s::jsonb, %s)
             ON CONFLICT (content_id) DO UPDATE SET
                 raw_json = EXCLUDED.raw_json,
@@ -125,7 +131,7 @@ class TravelCoursesRepository:
     ) -> None:
         # REPLACE 정책: 한 트랜잭션 안에서 기존 아이템 삭제 후 재삽입
         await conn.execute(
-            "DELETE FROM course_items WHERE course_content_id = %s",
+            f"DELETE FROM {COURSE_ITEMS_TABLE} WHERE course_content_id = %s",
             (course_content_id,),
         )
 
@@ -150,8 +156,8 @@ class TravelCoursesRepository:
             for item in items
         ]
         await conn.cursor().executemany(
-            """
-            INSERT INTO course_items (
+            f"""
+            INSERT INTO {COURSE_ITEMS_TABLE} (
                 course_content_id, serial_num, sub_content_id, matched_spot_id,
                 sub_name, sub_overview, sub_image, sub_image_alt
             ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
@@ -173,9 +179,9 @@ class TravelCoursesRepository:
             return set()
 
         row = await conn.execute(
-            """
+            f"""
             SELECT content_id
-              FROM spots
+              FROM {SPOTS_TABLE}
              WHERE content_id = ANY(%s)
             """,
             (candidate_ids,),

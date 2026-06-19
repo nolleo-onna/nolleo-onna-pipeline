@@ -16,7 +16,7 @@ depends_on = None
 
 def upgrade() -> None:
     op.execute("""
-    CREATE TABLE public.ldong_codes (
+    CREATE TABLE public.cd_ldong_codes (
         regn_cd     VARCHAR(2)   NOT NULL,
         signgu_cd   VARCHAR(5)   NOT NULL,
         name        VARCHAR(100) NOT NULL,
@@ -25,14 +25,14 @@ def upgrade() -> None:
     """)
 
     op.execute("""
-    COMMENT ON TABLE public.ldong_codes IS 'TourAPI 법정동 시군구 코드 마스터';
-    COMMENT ON COLUMN public.ldong_codes.regn_cd IS '법정동 시도 코드';
-    COMMENT ON COLUMN public.ldong_codes.signgu_cd IS '법정동 시군구 코드';
-    COMMENT ON COLUMN public.ldong_codes.name IS '시군구명';
+    COMMENT ON TABLE public.cd_ldong_codes IS 'TourAPI 법정동 시군구 코드 마스터';
+    COMMENT ON COLUMN public.cd_ldong_codes.regn_cd IS '법정동 시도 코드';
+    COMMENT ON COLUMN public.cd_ldong_codes.signgu_cd IS '법정동 시군구 코드';
+    COMMENT ON COLUMN public.cd_ldong_codes.name IS '시군구명';
     """)
 
     op.execute("""
-    INSERT INTO public.ldong_codes (regn_cd, signgu_cd, name) VALUES
+    INSERT INTO public.cd_ldong_codes (regn_cd, signgu_cd, name) VALUES
         ('26', '110', '중구'),
         ('26', '140', '서구'),
         ('26', '170', '동구'),
@@ -53,4 +53,4 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.execute("DROP TABLE IF EXISTS public.ldong_codes;")
+    op.execute("DROP TABLE IF EXISTS public.cd_ldong_codes;")
